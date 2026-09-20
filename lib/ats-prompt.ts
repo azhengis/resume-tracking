@@ -531,3 +531,9 @@ export const STAGE_LABELS: Record<Stage, string> = {
   resume: "Rewriting resume",
   review: "Final review",
 };
+
+/** Pulls just the "## Tailored Resume" section out of the resume-stage output. */
+export function extractTailoredResume(stageResumeOutput: string): string {
+  const match = stageResumeOutput.match(/## Tailored Resume\s*\n([\s\S]*?)(?=\n## |\s*$)/i);
+  return (match ? match[1] : stageResumeOutput).trim();
+}

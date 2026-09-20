@@ -5,7 +5,7 @@ import { useLocalStorage } from "@/lib/useLocalStorage";
 import { Field, inputClass, textareaClass } from "@/components/Field";
 import Markdown from "@/components/Markdown";
 import type { TrackerEntry } from "@/lib/types";
-import { STAGE_LABELS, type Stage } from "@/lib/ats-prompt";
+import { STAGE_LABELS, extractTailoredResume, type Stage } from "@/lib/ats-prompt";
 
 interface Draft {
   company: string;
@@ -39,6 +39,7 @@ export default function EvaluateTab({
   const [aboutMe] = useLocalStorage("rs:aboutMe", "");
   const [draft, setDraft] = useLocalStorage<Draft>("rs:draft", EMPTY_DRAFT);
   const [stages, setStages] = useLocalStorage<Stages>("rs:lastStages", EMPTY_STAGES);
+  const [finalResume, setFinalResume] = useLocalStorage("rs:finalResume", "");
 
   const [runningStage, setRunningStage] = useState<Stage | null>(null);
   const [error, setError] = useState("");
@@ -73,6 +74,7 @@ export default function EvaluateTab({
       return;
     }
     setStages(EMPTY_STAGES);
+    setFinalResume("");
     try {
       setRunningStage("analysis");
       const analysis = await callStage("analysis", {});
@@ -81,6 +83,7 @@ export default function EvaluateTab({
       setRunningStage("resume");
       const resumeOut = await callStage("resume", { priorAnalysis: analysis });
       setStages((s) => ({ ...s, resume: resumeOut }));
+      setFinalResume(extractTailoredResume(resumeOut));
 
       setRunningStage("review");
       const review = await callStage("review", { priorAnalysis: analysis, priorResume: resumeOut });
@@ -101,7 +104,7 @@ export default function EvaluateTab({
       status: "Evaluated",
       dateAdded: new Date().toISOString(),
       jobDescription: draft.jobDescription,
-      resumeUsed: resume,
+      resumeUsed: finalResume.trim() || resume,
       report: joinReport(stages),
       notes: "",
     };
@@ -224,6 +227,26 @@ export default function EvaluateTab({
           {stages.resume && (
             <ReportCard title="2 · Tailored resume" text={stages.resume} />
           )}
+
+          {stages.resume && (
+            <div className="rounded-lg border border-accent/40 bg-accent-soft/30 p-6">
+              <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-accent">
+                Final resume — saved to the tracker
+              </h4>
+              <p className="mb-3 text-xs text-muted">
+                Pre-filled from the tailored resume above. Edit it to match whatever you
+                actually send, then this is what gets saved with {draft.company || "this"}{" "}
+                in the tracker so you always know which version you applied with.
+              </p>
+              <textarea
+                className={textareaClass + " bg-surface"}
+                rows={16}
+                value={finalResume}
+                onChange={(e) => setFinalResume(e.target.value)}
+              />
+            </div>
+          )}
+
           {stages.review && (
             <ReportCard title="3 · Final review" text={stages.review} />
           )}
