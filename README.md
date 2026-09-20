@@ -37,17 +37,34 @@ auth errors after a while, run `vercel link` again (or `vercel env pull`) to ref
 
 ## Deployed copy
 
-Also deployed at Vercel, protected by Vercel Authentication (SSO) so only this account
-can open it — the production alias was intentionally removed since Standard/Password
-protection for a stable production domain requires a paid plan:
+Also deployed at Vercel, at a stable link:
 
-```
-vercel project protection            # inspect current protection
-vercel deploy                        # ships a new protected deployment
+**https://resume-screening-nu-sable.vercel.app**
+
+Vercel's own deployment protection (SSO/password) can't cover a stable alias on the
+Hobby plan, so instead the app gates itself: `proxy.ts` (Next's middleware convention)
+checks a signed cookie against the `APP_PASSWORD` env var on every request, and
+`/login` + `/api/login` issue that cookie. Vercel's SSO protection is turned off for
+this project since it would just add a redundant login in front of this one.
+
+The passphrase lives only in `.env.local` (gitignored) and in the Vercel project's
+encrypted env vars — never in this repo. To see or rotate it:
+
+```bash
+vercel env ls                       # confirm APP_PASSWORD is set (value hidden)
+vercel env rm APP_PASSWORD production preview   # remove old value
+printf 'new-passphrase' | vercel env add APP_PASSWORD production
+printf 'new-passphrase' | vercel env add APP_PASSWORD preview
 ```
 
-Each `vercel deploy` prints a fresh protected `*.vercel.app` URL — open it while logged
-into vercel.com with this account.
+To ship a change to the stable link (env var changes and code changes both need a
+fresh deploy, and the alias has to be re-pointed since `vercel deploy` always creates a
+new URL):
+
+```bash
+vercel deploy
+vercel alias set <the-new-deployment-url-it-printed> resume-screening-nu-sable.vercel.app
+```
 
 ## Notes
 
