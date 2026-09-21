@@ -471,6 +471,13 @@ Return only the following, using these exact Markdown headings, in this order:
 ## Tailored Resume
 A complete, ATS-friendly resume rewritten for this specific job, following the Technical Resume Optimization and Technical Credibility Review instructions above. Include only confirmed information; mark anything that depends on confirmation inline as \`[UNCONFIRMED: ...]\` rather than stating it as fact.
 
+This section gets rendered directly into a PDF, so write it as plain resume text, not Markdown:
+- Line 1 is the candidate's name and nothing else.
+- Section headers (EXPERIENCE, EDUCATION, SKILLS, etc.) sit alone on their own line, in capital letters, nothing else on that line.
+- Bullet points are lines starting with "- ".
+- No Markdown at all inside this section — no \`**bold**\`, \`_italics_\`, backticks, or \`#\` headers. Plain text only.
+- A blank line between sections.
+
 ## Optional Enhanced Versions
 Alternate bullets or sections that could replace parts of the tailored resume once I confirm specific unconfirmed details. Clearly distinguish these from the finalized resume above — they are not part of it yet.
 

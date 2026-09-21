@@ -40,6 +40,7 @@ export default function EvaluateTab({
   setEntries: (fn: (prev: TrackerEntry[]) => TrackerEntry[]) => void;
 }) {
   const [aboutMe] = useLocalStorage("rs:aboutMe", "");
+  const [resumeFont] = useLocalStorage("rs:resumeFont", "sans-serif");
   const [draft, setDraft] = useLocalStorage<Draft>("rs:draft", EMPTY_DRAFT);
   const [stages, setStages] = useLocalStorage<Stages>("rs:lastStages", EMPTY_STAGES);
   const [finalResume, setFinalResume] = useLocalStorage("rs:finalResume", "");
@@ -47,6 +48,7 @@ export default function EvaluateTab({
   const [runningStage, setRunningStage] = useState<Stage | null>(null);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const update = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch });
 
@@ -114,6 +116,35 @@ export default function EvaluateTab({
     setEntries((prev) => [entry, ...prev]);
     setSaved(true);
     onSaved();
+  }
+
+  async function downloadPdf() {
+    setError("");
+    setDownloading(true);
+    try {
+      const res = await fetch("/api/generate-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: finalResume, fontStyle: resumeFont }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Couldn't generate the PDF.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${draft.company.trim() || "resume"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't generate the PDF.");
+    } finally {
+      setDownloading(false);
+    }
   }
 
   const hasAnyOutput = Boolean(stages.analysis || stages.resume || stages.review);
@@ -218,9 +249,18 @@ export default function EvaluateTab({
 
           {stages.resume && (
             <div className="rounded-lg border border-border bg-surface p-6">
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
-                Final resume
-              </h4>
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  Final resume
+                </h4>
+                <button
+                  onClick={downloadPdf}
+                  disabled={downloading || !finalResume.trim()}
+                  className="rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-soft disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  {downloading ? "Generating…" : "Download PDF"}
+                </button>
+              </div>
               <textarea
                 className={textareaClass}
                 rows={16}

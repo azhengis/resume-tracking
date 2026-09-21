@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { textareaClass } from "@/components/Field";
+import { useLocalStorage } from "@/lib/useLocalStorage";
 
 export default function ResumeSetup({
   resume,
@@ -10,6 +11,7 @@ export default function ResumeSetup({
   resume: string;
   setResume: (v: string) => void;
 }) {
+  const [, setResumeFont] = useLocalStorage("rs:resumeFont", "sans-serif");
   const [mode, setMode] = useState<"pdf" | "text">(resume ? "text" : "pdf");
   const [text, setText] = useState(resume);
   const [uploading, setUploading] = useState(false);
@@ -29,6 +31,7 @@ export default function ResumeSetup({
       if (!res.ok) throw new Error(data.error || "Upload failed.");
       setResume(data.text);
       setText(data.text);
+      if (data.fontStyle) setResumeFont(data.fontStyle);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed.");
     } finally {

@@ -73,6 +73,12 @@ vercel alias set <the-new-deployment-url-it-printed> resume-screening-nu-sable.v
 - The evaluation is a 3-stage pipeline (`lib/ats-prompt.ts`: analysis → tailored resume →
   final review), run as three sequential requests so each stage stays focused and none of
   them silently truncate. The UI shows each stage's result as it completes.
+- Uploading a PDF resume detects its font category (serif/sans-serif/monospace) from the
+  actual embedded fonts (`app/api/parse-resume/route.ts`, via `unpdf`) and stores it
+  alongside the extracted text. "Download PDF" (`app/api/generate-pdf/route.ts`, via
+  `pdf-lib`) renders the tailored resume text into a fresh PDF in that same font family —
+  it's a regenerated document, not an edit of the original file, since real PDF content
+  streams don't reflow when the text length changes.
 - Because everything is `localStorage`-backed, data is per-browser. If you want it to
   follow you across devices, that'd mean adding real persistence (a database) — not set
   up here since this was built as a single-browser personal tool.
