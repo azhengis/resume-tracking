@@ -51,14 +51,6 @@ export default function TrackerTab({
               <td className="px-4 py-3 text-right text-xs not-italic">delete</td>
             </tr>
           )}
-          {entries.length === 0 && (
-            <tr>
-              <td colSpan={6} className="px-4 py-6 text-center text-sm text-muted">
-                Nothing tracked yet — this is what a saved evaluation will look like. Run
-                one and hit &ldquo;Save to tracker&rdquo; to fill this in.
-              </td>
-            </tr>
-          )}
           {entries.map((entry) => {
             const isOpen = openId === entry.id;
             return (
@@ -144,7 +136,7 @@ export default function TrackerTab({
                           (entry.report ? (
                             <Markdown text={entry.report} />
                           ) : (
-                            <p className="text-sm text-muted">No report saved for this entry.</p>
+                            <p className="text-sm text-muted">—</p>
                           ))}
                         {view === "resume" && (
                           <pre className="whitespace-pre-wrap font-mono text-xs text-ink">
@@ -162,7 +154,7 @@ export default function TrackerTab({
                         <textarea
                           className="w-full rounded-md border border-border bg-surface px-3 py-2 text-xs text-ink outline-none focus:border-accent"
                           rows={2}
-                          placeholder="Notes (interview dates, contacts, follow-ups...)"
+                          placeholder="Notes"
                           value={entry.notes}
                           onChange={(e) => update(entry.id, { notes: e.target.value })}
                         />

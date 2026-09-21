@@ -36,8 +36,7 @@ export default function LoginPage() {
         onSubmit={submit}
         className="w-full max-w-sm rounded-lg border border-border bg-surface p-6"
       >
-        <h1 className="text-sm font-semibold text-ink">resume check</h1>
-        <p className="mt-1 mb-4 text-xs text-muted">Private tool — enter the passphrase to continue.</p>
+        <h1 className="mb-4 text-sm font-semibold text-ink">resume check</h1>
         <input
           type="password"
           autoFocus
@@ -50,7 +49,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading || !password}
-          className="mt-4 w-full rounded-md bg-accent px-3 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+          className="mt-4 w-full rounded-md bg-accent px-3 py-2 text-sm font-medium text-bg transition hover:opacity-90 disabled:opacity-50"
         >
           {loading ? "Checking…" : "Enter"}
         </button>

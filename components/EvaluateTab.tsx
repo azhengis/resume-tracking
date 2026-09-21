@@ -29,13 +29,16 @@ function joinReport(stages: Stages) {
 }
 
 export default function EvaluateTab({
+  resume,
   onSaved,
+  onReplaceResume,
   setEntries,
 }: {
+  resume: string;
   onSaved: () => void;
+  onReplaceResume: () => void;
   setEntries: (fn: (prev: TrackerEntry[]) => TrackerEntry[]) => void;
 }) {
-  const [resume, setResume] = useLocalStorage("rs:resume", "");
   const [aboutMe] = useLocalStorage("rs:aboutMe", "");
   const [draft, setDraft] = useLocalStorage<Draft>("rs:draft", EMPTY_DRAFT);
   const [stages, setStages] = useLocalStorage<Stages>("rs:lastStages", EMPTY_STAGES);
@@ -69,8 +72,8 @@ export default function EvaluateTab({
   async function runEvaluation() {
     setError("");
     setSaved(false);
-    if (!resume.trim() || !draft.jobDescription.trim()) {
-      setError("Add both a resume and a job description first.");
+    if (!draft.jobDescription.trim()) {
+      setError("Add a job description first.");
       return;
     }
     setStages(EMPTY_STAGES);
@@ -117,62 +120,51 @@ export default function EvaluateTab({
   const pipelineDone = Boolean(stages.review) && !runningStage;
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <div className="space-y-4">
-        <Field label="Your resume" hint="plain text · saved locally">
-          <textarea
-            className={textareaClass}
-            rows={18}
-            placeholder="Paste the resume you're evaluating (the version you'd apply with)..."
-            value={resume}
-            onChange={(e) => setResume(e.target.value)}
-          />
-        </Field>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div className="flex items-center justify-between text-xs text-muted">
+        <span>{resume.slice(0, 60)}{resume.length > 60 ? "…" : ""}</span>
+        <button onClick={onReplaceResume} className="text-ink underline underline-offset-2">
+          Replace
+        </button>
       </div>
 
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Company">
-            <input
-              className={inputClass}
-              value={draft.company}
-              onChange={(e) => update({ company: e.target.value })}
-              placeholder="Acme Inc."
-            />
-          </Field>
-          <Field label="Job title">
-            <input
-              className={inputClass}
-              value={draft.jobTitle}
-              onChange={(e) => update({ jobTitle: e.target.value })}
-              placeholder="Software Engineer"
-            />
-          </Field>
-        </div>
-        <Field label="Job posting link" hint="optional">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Company">
           <input
             className={inputClass}
-            value={draft.link}
-            onChange={(e) => update({ link: e.target.value })}
-            placeholder="https://..."
+            value={draft.company}
+            onChange={(e) => update({ company: e.target.value })}
           />
         </Field>
-        <Field label="Job description">
-          <textarea
-            className={textareaClass}
-            rows={12}
-            placeholder="Paste the full job description..."
-            value={draft.jobDescription}
-            onChange={(e) => update({ jobDescription: e.target.value })}
+        <Field label="Job title">
+          <input
+            className={inputClass}
+            value={draft.jobTitle}
+            onChange={(e) => update({ jobTitle: e.target.value })}
           />
         </Field>
       </div>
+      <Field label="Link">
+        <input
+          className={inputClass}
+          value={draft.link}
+          onChange={(e) => update({ link: e.target.value })}
+        />
+      </Field>
+      <Field label="Job description">
+        <textarea
+          className={textareaClass}
+          rows={16}
+          value={draft.jobDescription}
+          onChange={(e) => update({ jobDescription: e.target.value })}
+        />
+      </Field>
 
-      <div className="lg:col-span-2 flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={runEvaluation}
           disabled={runningStage !== null}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg transition hover:opacity-90 disabled:opacity-50"
         >
           {runningStage ? "Running…" : "Run evaluation"}
         </button>
@@ -209,37 +201,28 @@ export default function EvaluateTab({
       </div>
 
       {hasAnyOutput && (
-        <div className="lg:col-span-2 space-y-4">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-ink">Evaluation report</h3>
+            <h3 className="text-sm font-semibold text-ink">Report</h3>
             <button
               onClick={saveToTracker}
               disabled={!pipelineDone}
               className="rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-soft disabled:opacity-40 disabled:hover:bg-transparent"
             >
-              {saved ? "Saved ✓ — save again" : "Save to tracker"}
+              {saved ? "Saved ✓" : "Save to tracker"}
             </button>
           </div>
 
-          {stages.analysis && (
-            <ReportCard title="1 · Analysis" text={stages.analysis} />
-          )}
-          {stages.resume && (
-            <ReportCard title="2 · Tailored resume" text={stages.resume} />
-          )}
+          {stages.analysis && <ReportCard title="1 · Analysis" text={stages.analysis} />}
+          {stages.resume && <ReportCard title="2 · Tailored resume" text={stages.resume} />}
 
           {stages.resume && (
-            <div className="rounded-lg border border-accent/40 bg-accent-soft/30 p-6">
-              <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-accent">
-                Final resume — saved to the tracker
+            <div className="rounded-lg border border-border bg-surface p-6">
+              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                Final resume
               </h4>
-              <p className="mb-3 text-xs text-muted">
-                Pre-filled from the tailored resume above. Edit it to match whatever you
-                actually send, then this is what gets saved with {draft.company || "this"}{" "}
-                in the tracker so you always know which version you applied with.
-              </p>
               <textarea
-                className={textareaClass + " bg-surface"}
+                className={textareaClass}
                 rows={16}
                 value={finalResume}
                 onChange={(e) => setFinalResume(e.target.value)}
@@ -247,9 +230,7 @@ export default function EvaluateTab({
             </div>
           )}
 
-          {stages.review && (
-            <ReportCard title="3 · Final review" text={stages.review} />
-          )}
+          {stages.review && <ReportCard title="3 · Final review" text={stages.review} />}
         </div>
       )}
     </div>
