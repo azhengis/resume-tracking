@@ -471,12 +471,43 @@ Return only the following, using these exact Markdown headings, in this order:
 ## Tailored Resume
 A complete, ATS-friendly resume rewritten for this specific job, following the Technical Resume Optimization and Technical Credibility Review instructions above. Include only confirmed information; mark anything that depends on confirmation inline as \`[UNCONFIRMED: ...]\` rather than stating it as fact.
 
-This section gets rendered directly into a PDF, so write it as plain resume text, not Markdown:
-- Line 1 is the candidate's name and nothing else.
-- Section headers (EXPERIENCE, EDUCATION, SKILLS, etc.) sit alone on their own line, in capital letters, nothing else on that line.
+This section gets parsed directly into a PDF layout (centered header, ruled section headers, two-column entry rows, bullet lists, a two-column skills grid), so follow this exact plain-text convention — no Markdown at all inside this section (no \`**bold**\`, \`_italics_\`, backticks, or \`#\` headers):
+
+- Line 1: the candidate's name, nothing else.
+- Line 2: the contact line — city/state, phone, email, LinkedIn, GitHub, etc., separated by " | ".
+- Section headers (EDUCATION, WORK EXPERIENCE, PROJECTS, SKILLS, etc.) sit alone on their own line, in capital letters, nothing else on that line.
+- For an entry with an organization/company and a location (e.g. a job or a school), write ONE line as \`Org or School Name @@ Location\` — this renders as a bold row with the org left-aligned and the location right-aligned.
+- Immediately below it, if there's a role/title/degree and a date range, write ONE line as \`Role or Degree @| Date range\` — this renders as an italic row, same left/right alignment. Omit this line if there's nothing to put on it.
+- For an entry with no separate location/date columns (e.g. a project), just write the title as its own plain line (no \`@@\`/\`@|\`) — it renders bold, left-aligned.
 - Bullet points are lines starting with "- ".
-- No Markdown at all inside this section — no \`**bold**\`, \`_italics_\`, backticks, or \`#\` headers. Plain text only.
-- A blank line between sections.
+- For the SKILLS section specifically, write each category as its own line as \`Category label: @s items, comma, separated\` — these get packed two-per-row into a bold-label/regular-items grid, matching a typical two-column skills block. Don't use \`@@\`/\`@|\` for skills.
+- A blank line between entries and between sections.
+
+Example of the exact shape (illustrative content, not something to copy):
+
+\`\`\`
+Jane Doe
+Chicago, IL | 555-123-4567 | jane@example.com | LinkedIn | GitHub
+
+EDUCATION
+State University @@ Chicago, IL
+BS in Computer Science (GPA: 3.8) @| Graduation Date: June 2026
+- Relevant coursework: ...
+
+WORK EXPERIENCE
+Acme Inc. @@ Remote
+Software Engineering Intern @| June 2025 - Present
+- Built a service that ...
+- Improved latency by ...
+
+PROJECTS
+Some Project Name | one-line description
+- Built ...
+
+SKILLS
+Programming: @s Python, SQL, Java
+Data Science: @s Statistical Modeling, Classification
+\`\`\`
 
 ## Optional Enhanced Versions
 Alternate bullets or sections that could replace parts of the tailored resume once I confirm specific unconfirmed details. Clearly distinguish these from the finalized resume above — they are not part of it yet.
