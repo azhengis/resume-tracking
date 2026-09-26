@@ -3,15 +3,7 @@
 import { useRef, useState } from "react";
 import { Field, inputClass, textareaClass } from "@/components/Field";
 import type { TrackerEntry } from "@/lib/types";
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
+import { blobToDataUrl } from "@/lib/pdf-client";
 
 export default function AddEntryForm({
   onAdd,

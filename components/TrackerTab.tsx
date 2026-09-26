@@ -5,15 +5,7 @@ import { TRACKER_STATUSES, type TrackerEntry, type TrackerStatus } from "@/lib/t
 import SectionedReport from "@/components/SectionedReport";
 import PdfInlineViewer from "@/components/PdfInlineViewer";
 import AddEntryForm from "@/components/AddEntryForm";
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
+import { blobToDataUrl } from "@/lib/pdf-client";
 
 export default function TrackerTab({
   entries,
@@ -181,11 +173,13 @@ export default function TrackerTab({
                           </div>
                           <div className="flex flex-wrap items-center gap-3">
                             {entry.resumePdf && (
-                              <PdfInlineViewer
-                                url={entry.resumePdf}
-                                filename={`${entry.company}-resume.pdf`}
-                                label="resume PDF"
-                              />
+                              <a
+                                href={entry.resumePdf}
+                                download={`${entry.company}-resume.pdf`}
+                                className="text-xs text-accent underline underline-offset-2"
+                              >
+                                Download resume PDF
+                              </a>
                             )}
                             {entry.reportPdf && (
                               <PdfInlineViewer
@@ -224,11 +218,18 @@ export default function TrackerTab({
                             ) : (
                               <p className="text-sm text-muted">—</p>
                             ))}
-                          {view === "resume" && (
-                            <pre className="whitespace-pre-wrap font-mono text-xs text-ink">
-                              {entry.resumeUsed || "—"}
-                            </pre>
-                          )}
+                          {view === "resume" &&
+                            (entry.resumePdf ? (
+                              <iframe
+                                src={entry.resumePdf}
+                                title="Resume PDF"
+                                className="h-[26rem] w-full rounded"
+                              />
+                            ) : (
+                              <pre className="whitespace-pre-wrap font-mono text-xs text-ink">
+                                {entry.resumeUsed || "—"}
+                              </pre>
+                            ))}
                           {view === "jd" && (
                             <pre className="whitespace-pre-wrap font-mono text-xs text-ink">
                               {entry.jobDescription || "—"}
