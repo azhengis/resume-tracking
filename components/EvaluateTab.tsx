@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useLocalStorage } from "@/lib/useLocalStorage";
 import { Field, inputClass, textareaClass } from "@/components/Field";
-import Markdown from "@/components/Markdown";
+import SectionedReport from "@/components/SectionedReport";
+import PdfInlineViewer from "@/components/PdfInlineViewer";
 import type { TrackerEntry } from "@/lib/types";
 import { STAGE_LABELS, extractTailoredResume, type Stage } from "@/lib/ats-prompt";
 
@@ -63,7 +64,8 @@ export default function EvaluateTab({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [preparingPdf, setPreparingPdf] = useState(false);
+  const [finalResumePdfUrl, setFinalResumePdfUrl] = useState<string | null>(null);
 
   const update = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch });
 
@@ -95,6 +97,8 @@ export default function EvaluateTab({
     }
     setStages(EMPTY_STAGES);
     setFinalResume("");
+    if (finalResumePdfUrl) URL.revokeObjectURL(finalResumePdfUrl);
+    setFinalResumePdfUrl(null);
     try {
       setRunningStage("analysis");
       const analysis = await callStage("analysis", {});
@@ -166,24 +170,22 @@ export default function EvaluateTab({
     }
   }
 
-  async function downloadPdf() {
+  async function prepareFinalResumePdf() {
     setError("");
-    setDownloading(true);
+    setPreparingPdf(true);
     try {
       const blob = await fetchPdfBlob(finalResume, "resume");
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${draft.company.trim() || "resume"}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      setFinalResumePdfUrl(URL.createObjectURL(blob));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't generate the PDF.");
     } finally {
-      setDownloading(false);
+      setPreparingPdf(false);
     }
+  }
+
+  function invalidateFinalResumePdf() {
+    if (finalResumePdfUrl) URL.revokeObjectURL(finalResumePdfUrl);
+    setFinalResumePdfUrl(null);
   }
 
   const hasAnyOutput = Boolean(stages.analysis || stages.resume || stages.review);
@@ -292,19 +294,38 @@ export default function EvaluateTab({
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
                   Final resume
                 </h4>
-                <button
-                  onClick={downloadPdf}
-                  disabled={downloading || !finalResume.trim()}
-                  className="rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-soft disabled:opacity-40 disabled:hover:bg-transparent"
-                >
-                  {downloading ? "Generating…" : "Download PDF"}
-                </button>
+                {finalResumePdfUrl ? (
+                  <div className="flex items-center gap-3">
+                    <PdfInlineViewer
+                      url={finalResumePdfUrl}
+                      filename={`${draft.company.trim() || "resume"}.pdf`}
+                      label="PDF"
+                    />
+                    <button
+                      onClick={invalidateFinalResumePdf}
+                      className="text-xs text-muted hover:text-ink"
+                    >
+                      Regenerate
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={prepareFinalResumePdf}
+                    disabled={preparingPdf || !finalResume.trim()}
+                    className="rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-soft disabled:opacity-40 disabled:hover:bg-transparent"
+                  >
+                    {preparingPdf ? "Generating…" : "Generate PDF"}
+                  </button>
+                )}
               </div>
               <textarea
                 className={textareaClass}
                 rows={16}
                 value={finalResume}
-                onChange={(e) => setFinalResume(e.target.value)}
+                onChange={(e) => {
+                  setFinalResume(e.target.value);
+                  if (finalResumePdfUrl) invalidateFinalResumePdf();
+                }}
               />
             </div>
           )}
@@ -320,7 +341,7 @@ function ReportCard({ title, text }: { title: string; text: string }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-6">
       <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">{title}</h4>
-      <Markdown text={text} />
+      <SectionedReport text={text} />
     </div>
   );
 }

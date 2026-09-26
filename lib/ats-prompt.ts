@@ -439,6 +439,8 @@ const STAGE_OUTPUT_SPEC: Record<Stage, string> = {
 
 This is stage 1 of a 3-stage pipeline. Later stages (which you are not writing) will produce the tailored resume and the final recruiter review — do not write those here, and do not write an executive summary yet, since it isn't informed by them.
 
+Write every section below as bullet points or the specified table, not prose paragraphs — this gets read on a phone between applications, so scannability matters more than flowing sentences.
+
 Return only the following, using these exact Markdown headings, in this order:
 
 ## Job Description Breakdown
@@ -527,14 +529,16 @@ This is the final stage of a 3-stage pipeline. PRIOR ANALYSIS (stage 1) and the 
 
 Return only the following, using these exact Markdown headings, in this order:
 
+Write every section below as short labeled bullet points, not prose paragraphs — this gets read on a phone between applications, so scannability matters more than flowing sentences.
+
 ## Executive Assessment
-Overall alignment with the target role, main strengths, biggest gaps or missing evidence, and the most important improvements. Do not give an arbitrary overall score unless you explain the scoring framework.
+Bullets covering: overall alignment with the target role, main strengths, biggest gaps or missing evidence, and the most important improvements. Do not give an arbitrary overall score unless you explain the scoring framework.
 
 ## Recruiter Review
-Act as a human recruiter reading the tailored resume for the first time: what stands out, what might raise questions, which experiences deserve more attention, whether it's easy to scan, and what interview questions it's likely to generate.
+Act as a human recruiter reading the tailored resume for the first time. Bullets covering: what stands out, what might raise questions, which experiences deserve more attention, whether it's easy to scan, and what interview questions it's likely to generate.
 
 ## Open Items (Optional)
-Only genuinely open items from the whole analysis that would meaningfully change things if confirmed — framed as notes for me to consider before my next revision, not questions you're waiting on an answer to. If there's nothing worth flagging, say so in one line.
+Bullets, one per open item. Only genuinely open items from the whole analysis that would meaningfully change things if confirmed — framed as notes for me to consider before my next revision, not questions you're waiting on an answer to. If there's nothing worth flagging, say so in one line.
 
 ## Final Verification Checklist
 Render this exact checklist as literal Markdown checkboxes, marking each one based on how the full analysis (stages 1–3) actually turned out:
