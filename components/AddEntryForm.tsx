@@ -9,7 +9,7 @@ export default function AddEntryForm({
   onAdd,
   onCancel,
 }: {
-  onAdd: (entry: TrackerEntry) => void;
+  onAdd: (entry: TrackerEntry) => Promise<void>;
   onCancel: () => void;
 }) {
   const [company, setCompany] = useState("");
@@ -65,7 +65,9 @@ export default function AddEntryForm({
         notes: "",
         resumePdf,
       };
-      onAdd(entry);
+      await onAdd(entry);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save the entry.");
     } finally {
       setSubmitting(false);
     }

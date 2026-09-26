@@ -2,16 +2,16 @@
 
 import { useRef, useState } from "react";
 import { textareaClass } from "@/components/Field";
-import { useLocalStorage } from "@/lib/useLocalStorage";
 
 export default function ResumeSetup({
   resume,
   setResume,
+  setResumeFont,
 }: {
   resume: string;
   setResume: (v: string) => void;
+  setResumeFont: (v: string) => void;
 }) {
-  const [, setResumeFont] = useLocalStorage("rs:resumeFont", "sans-serif");
   const [mode, setMode] = useState<"pdf" | "text">(resume ? "text" : "pdf");
   const [text, setText] = useState(resume);
   const [uploading, setUploading] = useState(false);

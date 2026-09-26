@@ -9,10 +9,14 @@ import { blobToDataUrl } from "@/lib/pdf-client";
 
 export default function TrackerTab({
   entries,
-  setEntries,
+  onAdd,
+  onUpdate,
+  onDelete,
 }: {
   entries: TrackerEntry[];
-  setEntries: (fn: (prev: TrackerEntry[]) => TrackerEntry[]) => void;
+  onAdd: (entry: TrackerEntry) => Promise<void>;
+  onUpdate: (id: string, patch: Partial<TrackerEntry>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [view, setView] = useState<"report" | "resume" | "jd">("report");
@@ -20,13 +24,15 @@ export default function TrackerTab({
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  function update(id: string, patch: Partial<TrackerEntry>) {
-    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-  }
+  const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
+  const notesTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  function remove(id: string) {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-    if (openId === id) setOpenId(null);
+  function handleNotesChange(id: string, value: string) {
+    setNotesDraft((d) => ({ ...d, [id]: value }));
+    if (notesTimers.current[id]) clearTimeout(notesTimers.current[id]);
+    notesTimers.current[id] = setTimeout(() => {
+      onUpdate(id, { notes: value });
+    }, 600);
   }
 
   async function uploadOwnResume(id: string, file: File) {
@@ -37,7 +43,7 @@ export default function TrackerTab({
       const res = await fetch("/api/parse-resume", { method: "POST", body: form });
       const data = await res.json();
       const resumePdf = await blobToDataUrl(file);
-      update(id, { resumeUsed: res.ok ? data.text : "", resumePdf });
+      await onUpdate(id, { resumeUsed: res.ok ? data.text : "", resumePdf });
     } finally {
       setUploadingFor(null);
     }
@@ -56,8 +62,8 @@ export default function TrackerTab({
 
       {adding && (
         <AddEntryForm
-          onAdd={(entry) => {
-            setEntries((prev) => [entry, ...prev]);
+          onAdd={async (entry) => {
+            await onAdd(entry);
             setAdding(false);
           }}
           onCancel={() => setAdding(false)}
@@ -111,7 +117,7 @@ export default function TrackerTab({
                       <select
                         value={entry.status}
                         onChange={(e) =>
-                          update(entry.id, { status: e.target.value as TrackerStatus })
+                          onUpdate(entry.id, { status: e.target.value as TrackerStatus })
                         }
                         className="rounded border border-border bg-surface px-2 py-1 text-xs text-ink"
                       >
@@ -140,7 +146,8 @@ export default function TrackerTab({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          remove(entry.id);
+                          if (openId === entry.id) setOpenId(null);
+                          onDelete(entry.id);
                         }}
                         className="text-xs text-muted hover:text-danger"
                       >
@@ -204,9 +211,7 @@ export default function TrackerTab({
                               disabled={uploadingFor === entry.id}
                               className="text-xs text-ink underline underline-offset-2"
                             >
-                              {uploadingFor === entry.id
-                                ? "Uploading…"
-                                : "Use my own resume"}
+                              {uploadingFor === entry.id ? "Uploading…" : "Use my own resume"}
                             </button>
                           </div>
                         </div>
@@ -242,8 +247,8 @@ export default function TrackerTab({
                             className="w-full rounded-md border border-border bg-surface px-3 py-2 text-xs text-ink outline-none focus:border-accent"
                             rows={2}
                             placeholder="Notes"
-                            value={entry.notes}
-                            onChange={(e) => update(entry.id, { notes: e.target.value })}
+                            value={notesDraft[entry.id] ?? entry.notes}
+                            onChange={(e) => handleNotesChange(entry.id, e.target.value)}
                           />
                         </div>
                       </td>

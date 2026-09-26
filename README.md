@@ -10,9 +10,13 @@ evaluation from an LLM agent, and track applications in a lightweight tracker.
 - **About you** — free-form context about your background/goals, sent to the agent as
   extra context on every evaluation.
 
-All app data (resume, about-you context, tracker entries) lives in the browser's
-`localStorage` — nothing is stored server-side, nothing needs a database. Only the
-resume/JD/context text is sent to the model when you click "Run evaluation".
+App data (resume, about-you context, tracker entries, and the generated PDFs) lives in
+real server storage — a Neon Postgres database for the structured data, Vercel Blob for
+the PDF files — so it persists across devices/browsers, not just one. Only the
+resume/JD/context text is sent to the model when you click "Run evaluation". Working
+drafts (the job description you're mid-typing, in-progress stage results before you
+save) stay in the browser's `localStorage` — that part's still per-browser/ephemeral by
+design, only committed records are server-side.
 
 ## Setup
 
@@ -83,6 +87,13 @@ vercel alias set <the-new-deployment-url-it-printed> resume-screening-nu-sable.v
   `pdf-lib`) renders the tailored resume text into a fresh PDF in that same font family —
   it's a regenerated document, not an edit of the original file, since real PDF content
   streams don't reflow when the text length changes.
-- Because everything is `localStorage`-backed, data is per-browser. If you want it to
-  follow you across devices, that'd mean adding real persistence (a database) — not set
-  up here since this was built as a single-browser personal tool.
+- Real storage: Neon Postgres (`lib/db.ts`, two tables — `profile` key/value pairs and
+  `tracker_entries`) plus Vercel Blob for the resume/analysis PDFs (`lib/blob.ts`).
+  Both were provisioned via `vercel integration add neon` and `vercel blob create-store`
+  and connected to this project — `DATABASE_URL` / `BLOB_READ_WRITE_TOKEN` come from
+  Vercel's env vars, not anything committed here. `ensureSchema()` creates the tables on
+  first use, so there's no separate migration step to run.
+- If a browser still has old `localStorage`-only data (resume/entries) from before this
+  was added, the app detects that on load (server profile empty, local storage not) and
+  offers a one-time "move to server storage" migration (`app/api/migrate/route.ts`)
+  instead of silently losing it.

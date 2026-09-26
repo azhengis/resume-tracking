@@ -36,15 +36,17 @@ function buildReportForPdf(stages: Stages, draft: Draft) {
 
 export default function EvaluateTab({
   resume,
+  resumeFont,
+  aboutMe,
   onReplaceResume,
-  setEntries,
+  onSaveEntry,
 }: {
   resume: string;
+  resumeFont: string;
+  aboutMe: string;
   onReplaceResume: () => void;
-  setEntries: (fn: (prev: TrackerEntry[]) => TrackerEntry[]) => void;
+  onSaveEntry: (entry: TrackerEntry) => Promise<void>;
 }) {
-  const [aboutMe] = useLocalStorage("rs:aboutMe", "");
-  const [resumeFont] = useLocalStorage("rs:resumeFont", "sans-serif");
   const [draft, setDraft] = useLocalStorage<Draft>("rs:draft", EMPTY_DRAFT);
   const [stages, setStages] = useLocalStorage<Stages>("rs:lastStages", EMPTY_STAGES);
   const [finalResume, setFinalResume] = useLocalStorage("rs:finalResume", "");
@@ -220,7 +222,7 @@ export default function EvaluateTab({
         resumePdf,
         reportPdf,
       };
-      setEntries((prev) => [entry, ...prev]);
+      await onSaveEntry(entry);
 
       // Reset the form so it's ready for the next job posting.
       setDraft(EMPTY_DRAFT);
