@@ -111,24 +111,46 @@ export default function TrackerTab({
                 {isOpen && (
                   <tr className="border-b border-border bg-bg/60">
                     <td colSpan={6} className="px-4 py-4">
-                      <div className="mb-3 flex gap-1 rounded-md border border-border bg-surface p-1 w-fit">
-                        {(["report", "resume", "jd"] as const).map((v) => (
-                          <button
-                            key={v}
-                            onClick={() => setView(v)}
-                            className={`rounded px-2.5 py-1 text-xs ${
-                              view === v
-                                ? "bg-accent-soft font-medium text-accent"
-                                : "text-muted hover:text-ink"
-                            }`}
-                          >
-                            {v === "report"
-                              ? "Report"
-                              : v === "resume"
-                                ? "Resume used"
-                                : "Job description"}
-                          </button>
-                        ))}
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="flex gap-1 rounded-md border border-border bg-surface p-1 w-fit">
+                          {(["report", "resume", "jd"] as const).map((v) => (
+                            <button
+                              key={v}
+                              onClick={() => setView(v)}
+                              className={`rounded px-2.5 py-1 text-xs ${
+                                view === v
+                                  ? "bg-accent-soft font-medium text-accent"
+                                  : "text-muted hover:text-ink"
+                              }`}
+                            >
+                              {v === "report"
+                                ? "Report"
+                                : v === "resume"
+                                  ? "Resume used"
+                                  : "Job description"}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-3 text-xs">
+                          {entry.resumePdf && (
+                            <a
+                              href={entry.resumePdf}
+                              download={`${entry.company}-resume.pdf`}
+                              className="text-accent underline underline-offset-2"
+                            >
+                              Resume PDF
+                            </a>
+                          )}
+                          {entry.reportPdf && (
+                            <a
+                              href={entry.reportPdf}
+                              download={`${entry.company}-analysis.pdf`}
+                              className="text-accent underline underline-offset-2"
+                            >
+                              Analysis PDF
+                            </a>
+                          )}
+                        </div>
                       </div>
 
                       <div className="max-h-[28rem] overflow-y-auto rounded-md border border-border bg-surface p-4">

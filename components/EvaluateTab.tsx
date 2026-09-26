@@ -28,6 +28,20 @@ function joinReport(stages: Stages) {
   return [stages.analysis, stages.resume, stages.review].filter(Boolean).join("\n\n---\n\n");
 }
 
+function buildReportForPdf(stages: Stages, draft: Draft) {
+  const title = [draft.jobTitle, draft.company].filter(Boolean).join(" — ") || "Evaluation Report";
+  return [`# ${title}`, "", joinReport(stages)].join("\n");
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 export default function EvaluateTab({
   resume,
   onSaved,
@@ -48,6 +62,7 @@ export default function EvaluateTab({
   const [runningStage, setRunningStage] = useState<Stage | null>(null);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   const update = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch });
@@ -100,38 +115,62 @@ export default function EvaluateTab({
     }
   }
 
-  function saveToTracker() {
-    const entry: TrackerEntry = {
-      id: crypto.randomUUID(),
-      company: draft.company.trim() || "Unnamed company",
-      jobTitle: draft.jobTitle.trim(),
-      link: draft.link.trim(),
-      status: "Evaluated",
-      dateAdded: new Date().toISOString(),
-      jobDescription: draft.jobDescription,
-      resumeUsed: finalResume.trim() || resume,
-      report: joinReport(stages),
-      notes: "",
-    };
-    setEntries((prev) => [entry, ...prev]);
-    setSaved(true);
-    onSaved();
+  async function fetchPdfBlob(text: string, kind: "resume" | "report") {
+    const res = await fetch("/api/generate-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, fontStyle: resumeFont, kind }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || "Couldn't generate the PDF.");
+    }
+    return res.blob();
+  }
+
+  async function saveToTracker() {
+    setError("");
+    setSaved(false);
+    setSaving(true);
+    try {
+      const [resumeBlob, reportBlob] = await Promise.all([
+        fetchPdfBlob(finalResume, "resume"),
+        fetchPdfBlob(buildReportForPdf(stages, draft), "report"),
+      ]);
+      const [resumePdf, reportPdf] = await Promise.all([
+        blobToDataUrl(resumeBlob),
+        blobToDataUrl(reportBlob),
+      ]);
+
+      const entry: TrackerEntry = {
+        id: crypto.randomUUID(),
+        company: draft.company.trim() || "Unnamed company",
+        jobTitle: draft.jobTitle.trim(),
+        link: draft.link.trim(),
+        status: "Evaluated",
+        dateAdded: new Date().toISOString(),
+        jobDescription: draft.jobDescription,
+        resumeUsed: finalResume.trim() || resume,
+        report: joinReport(stages),
+        notes: "",
+        resumePdf,
+        reportPdf,
+      };
+      setEntries((prev) => [entry, ...prev]);
+      setSaved(true);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save to the tracker.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function downloadPdf() {
     setError("");
     setDownloading(true);
     try {
-      const res = await fetch("/api/generate-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: finalResume, fontStyle: resumeFont }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Couldn't generate the PDF.");
-      }
-      const blob = await res.blob();
+      const blob = await fetchPdfBlob(finalResume, "resume");
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -237,10 +276,10 @@ export default function EvaluateTab({
             <h3 className="text-sm font-semibold text-ink">Report</h3>
             <button
               onClick={saveToTracker}
-              disabled={!pipelineDone}
+              disabled={!pipelineDone || saving}
               className="rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-soft disabled:opacity-40 disabled:hover:bg-transparent"
             >
-              {saved ? "Saved ✓" : "Save to tracker"}
+              {saving ? "Saving…" : saved ? "Saved ✓" : "Save to tracker"}
             </button>
           </div>
 

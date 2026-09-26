@@ -13,9 +13,10 @@ const FONT_MAP: Record<FontStyle, { regular: StandardFonts; bold: StandardFonts 
   monospace: { regular: StandardFonts.Courier, bold: StandardFonts.CourierBold },
 };
 
-function isHeaderLine(line: string): boolean {
-  const letters = line.replace(/[^A-Za-z]/g, "");
-  return letters.length >= 2 && letters === letters.toUpperCase() && line.length <= 48;
+type Kind = "blank" | "title" | "header" | "bullet" | "body";
+interface Line {
+  kind: Kind;
+  text: string;
 }
 
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -35,7 +36,7 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
   return lines.length ? lines : [""];
 }
 
-export async function renderResumePdf(text: string, fontStyle: FontStyle): Promise<Uint8Array> {
+async function renderLines(lines: Line[], fontStyle: FontStyle): Promise<Uint8Array> {
   const fonts = FONT_MAP[fontStyle] ?? FONT_MAP["sans-serif"];
   const doc = await PDFDocument.create();
   const regular = await doc.embedFont(fonts.regular);
@@ -54,31 +55,24 @@ export async function renderResumePdf(text: string, fontStyle: FontStyle): Promi
     if (y - lineHeight < MARGIN) newPage();
   };
 
-  const lines = text.split("\n");
-
-  lines.forEach((rawLine, index) => {
-    const line = rawLine.trim();
-
-    if (!line) {
+  for (const line of lines) {
+    if (line.kind === "blank") {
       y -= 8;
-      return;
+      continue;
     }
 
-    const isName = index === 0;
-    const isBullet = /^[-•*]\s+/.test(line);
-    const header = !isName && !isBullet && isHeaderLine(line);
-
+    const isBullet = line.kind === "bullet";
     let font = regular;
     let size = 10.5;
     let indent = 0;
     let spacingBefore = 0;
     let spacingAfter = 2;
 
-    if (isName) {
+    if (line.kind === "title") {
       font = bold;
       size = 16;
       spacingAfter = 4;
-    } else if (header) {
+    } else if (line.kind === "header") {
       font = bold;
       size = 11;
       spacingBefore = 8;
@@ -91,9 +85,8 @@ export async function renderResumePdf(text: string, fontStyle: FontStyle): Promi
     y -= spacingBefore;
 
     const bulletPrefix = "•  ";
-    const content = isBullet ? line.replace(/^[-•*]\s+/, "") : line;
     const prefixWidth = isBullet ? font.widthOfTextAtSize(bulletPrefix, size) : 0;
-    const wrapped = wrapText(content, font, size, CONTENT_WIDTH - indent - prefixWidth);
+    const wrapped = wrapText(line.text, font, size, CONTENT_WIDTH - indent - prefixWidth);
 
     wrapped.forEach((wline, i) => {
       ensureSpace(lineHeight);
@@ -103,7 +96,83 @@ export async function renderResumePdf(text: string, fontStyle: FontStyle): Promi
     });
 
     y -= spacingAfter;
-  });
+  }
 
   return doc.save();
+}
+
+function isAllCapsHeader(line: string): boolean {
+  const letters = line.replace(/[^A-Za-z]/g, "");
+  return letters.length >= 2 && letters === letters.toUpperCase() && line.length <= 48;
+}
+
+/** Resume text: line 1 is the name, ALL-CAPS lines are section headers, "- " lines are bullets. */
+export async function renderResumePdf(text: string, fontStyle: FontStyle): Promise<Uint8Array> {
+  const rawLines = text.split("\n");
+  const lines: Line[] = rawLines.map((rawLine, index) => {
+    const line = rawLine.trim();
+    if (!line) return { kind: "blank", text: "" };
+    if (index === 0) return { kind: "title", text: line };
+    if (/^[-•*]\s+/.test(line)) return { kind: "bullet", text: line.replace(/^[-•*]\s+/, "") };
+    if (isAllCapsHeader(line)) return { kind: "header", text: line };
+    return { kind: "body", text: line };
+  });
+  return renderLines(lines, fontStyle);
+}
+
+function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/_(.+?)_/g, "$1")
+    .replace(/`(.+?)`/g, "$1");
+}
+
+/** Markdown-ish report text: #/## headers, "- " bullets, tables flattened, emphasis stripped. */
+export async function renderReportPdf(text: string, fontStyle: FontStyle): Promise<Uint8Array> {
+  const rawLines = text.split("\n");
+  const lines: Line[] = [];
+
+  for (const rawLine of rawLines) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      lines.push({ kind: "blank", text: "" });
+      continue;
+    }
+    if (/^[-*_]{3,}$/.test(line)) {
+      lines.push({ kind: "blank", text: "" });
+      continue;
+    }
+    if (/^\|?[\s:|-]+\|[\s:|-]*$/.test(line) && line.includes("-")) {
+      continue; // markdown table separator row
+    }
+
+    const heading = line.match(/^#{1,6}\s+(.*)/);
+    if (heading) {
+      lines.push({ kind: "header", text: stripInlineMarkdown(heading[1]) });
+      continue;
+    }
+
+    const bullet = line.match(/^[-•*]\s+(.*)/);
+    if (bullet) {
+      lines.push({ kind: "bullet", text: stripInlineMarkdown(bullet[1]) });
+      continue;
+    }
+
+    if (line.startsWith("|") && line.endsWith("|")) {
+      const cells = line
+        .slice(1, -1)
+        .split("|")
+        .map((c) => stripInlineMarkdown(c.trim()))
+        .filter(Boolean);
+      lines.push({ kind: "body", text: cells.join("   ·   ") });
+      continue;
+    }
+
+    lines.push({ kind: "body", text: stripInlineMarkdown(line) });
+  }
+
+  return renderLines(lines, fontStyle);
 }

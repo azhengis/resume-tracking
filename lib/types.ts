@@ -26,4 +26,6 @@ export interface TrackerEntry {
   resumeUsed: string;
   report: string;
   notes: string;
+  resumePdf?: string; // data: URL
+  reportPdf?: string; // data: URL
 }
