@@ -19,6 +19,36 @@ interface Line {
   text: string;
 }
 
+const UNICODE_REPLACEMENTS: Record<string, string> = {
+  "‘": "'",
+  "’": "'",
+  "“": '"',
+  "”": '"',
+  "–": "-",
+  "—": "-",
+  "…": "...",
+  " ": " ",
+  "→": "->",
+  "←": "<-",
+  "✓": "OK",
+  "✔": "OK",
+  "✗": "x",
+  "✘": "x",
+  "≥": ">=",
+  "≤": "<=",
+  "×": "x",
+  "÷": "/",
+};
+
+/** pdf-lib's standard fonts only encode WinAnsi (roughly Latin-1) — strip anything else. */
+function sanitizeForPdf(text: string): string {
+  const replaced = text.replace(
+    /[‘’“”–—… →←✓✔✗✘≥≤×÷]/g,
+    (ch) => UNICODE_REPLACEMENTS[ch] ?? ch,
+  );
+  return replaced.replace(/[^\x00-\xff]/g, "");
+}
+
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
@@ -55,7 +85,9 @@ async function renderLines(lines: Line[], fontStyle: FontStyle): Promise<Uint8Ar
     if (y - lineHeight < MARGIN) newPage();
   };
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    const line = { ...rawLine, text: sanitizeForPdf(rawLine.text) };
+
     if (line.kind === "blank") {
       y -= 8;
       continue;
