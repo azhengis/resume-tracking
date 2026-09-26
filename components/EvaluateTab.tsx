@@ -45,12 +45,10 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 
 export default function EvaluateTab({
   resume,
-  onSaved,
   onReplaceResume,
   setEntries,
 }: {
   resume: string;
-  onSaved: () => void;
   onReplaceResume: () => void;
   setEntries: (fn: (prev: TrackerEntry[]) => TrackerEntry[]) => void;
 }) {
@@ -62,12 +60,15 @@ export default function EvaluateTab({
 
   const [runningStage, setRunningStage] = useState<Stage | null>(null);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
+  const [savedMessage, setSavedMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [preparingPdf, setPreparingPdf] = useState(false);
   const [finalResumePdfUrl, setFinalResumePdfUrl] = useState<string | null>(null);
 
-  const update = (patch: Partial<Draft>) => setDraft({ ...draft, ...patch });
+  const update = (patch: Partial<Draft>) => {
+    setSavedMessage("");
+    setDraft({ ...draft, ...patch });
+  };
 
   async function callStage(stage: Stage, extra: Record<string, string>) {
     const res = await fetch("/api/evaluate", {
@@ -90,7 +91,7 @@ export default function EvaluateTab({
 
   async function runEvaluation() {
     setError("");
-    setSaved(false);
+    setSavedMessage("");
     if (!draft.jobDescription.trim()) {
       setError("Add a job description first.");
       return;
@@ -134,7 +135,6 @@ export default function EvaluateTab({
 
   async function saveToTracker() {
     setError("");
-    setSaved(false);
     setSaving(true);
     try {
       const [resumeBlob, reportBlob] = await Promise.all([
@@ -146,9 +146,10 @@ export default function EvaluateTab({
         blobToDataUrl(reportBlob),
       ]);
 
+      const company = draft.company.trim() || "Unnamed company";
       const entry: TrackerEntry = {
         id: crypto.randomUUID(),
-        company: draft.company.trim() || "Unnamed company",
+        company,
         jobTitle: draft.jobTitle.trim(),
         link: draft.link.trim(),
         status: "Evaluated",
@@ -161,8 +162,13 @@ export default function EvaluateTab({
         reportPdf,
       };
       setEntries((prev) => [entry, ...prev]);
-      setSaved(true);
-      onSaved();
+
+      // Reset the form so it's ready for the next job posting.
+      setDraft(EMPTY_DRAFT);
+      setStages(EMPTY_STAGES);
+      setFinalResume("");
+      invalidateFinalResumePdf();
+      setSavedMessage(`Saved "${company}" to the tracker.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save to the tracker.");
     } finally {
@@ -199,6 +205,15 @@ export default function EvaluateTab({
           Replace
         </button>
       </div>
+
+      {savedMessage && (
+        <div className="flex items-center justify-between rounded-md border border-accent/40 bg-accent-soft/40 px-3 py-2 text-xs text-ink">
+          <span>{savedMessage}</span>
+          <button onClick={() => setSavedMessage("")} className="text-muted hover:text-ink">
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <Field label="Company">
@@ -281,7 +296,7 @@ export default function EvaluateTab({
               disabled={!pipelineDone || saving}
               className="rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-soft disabled:opacity-40 disabled:hover:bg-transparent"
             >
-              {saving ? "Saving…" : saved ? "Saved ✓" : "Save to tracker"}
+              {saving ? "Saving…" : "Save to tracker"}
             </button>
           </div>
 

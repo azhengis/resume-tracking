@@ -63,7 +63,6 @@ export default function App() {
         {tab === "evaluate" && (
           <EvaluateTab
             resume={resume}
-            onSaved={() => setTab("tracker")}
             onReplaceResume={() => setTab("resume")}
             setEntries={setEntries}
           />
