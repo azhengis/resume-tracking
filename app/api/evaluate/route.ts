@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { text } = await generateText({
-      model: "anthropic/claude-sonnet-5",
+      model: "openai/gpt-4.1",
       instructions: STAGE_PROMPTS[stage],
       prompt: parts.join("\n"),
       maxOutputTokens: MAX_OUTPUT_TOKENS[stage],

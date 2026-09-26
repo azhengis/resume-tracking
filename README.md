@@ -68,8 +68,12 @@ vercel alias set <the-new-deployment-url-it-printed> resume-screening-nu-sable.v
 
 ## Notes
 
-- Model used is `anthropic/claude-sonnet-5` via the Vercel AI Gateway
-  (`app/api/evaluate/route.ts`) — swap the model string there if you want a different one.
+- Model used is `openai/gpt-4.1` via the Vercel AI Gateway (`app/api/evaluate/route.ts`) —
+  chosen because it's free-tier eligible (no AI Gateway credit purchase required, just
+  the card-on-file check). Claude models are gated behind a paid-tier purchase on the
+  Gateway; swap the model string there if that ever changes or you'd rather pay for
+  Claude quality. Check `https://ai-gateway.vercel.sh/v1/models` for what's currently
+  free-tier eligible before switching.
 - The evaluation is a 3-stage pipeline (`lib/ats-prompt.ts`: analysis → tailored resume →
   final review), run as three sequential requests so each stage stays focused and none of
   them silently truncate. The UI shows each stage's result as it completes.
