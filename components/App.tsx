@@ -5,13 +5,15 @@ import type { TrackerEntry } from "@/lib/types";
 import AboutTab from "@/components/AboutTab";
 import EvaluateTab from "@/components/EvaluateTab";
 import TrackerTab from "@/components/TrackerTab";
+import DashboardTab from "@/components/DashboardTab";
 import ResumeSetup from "@/components/ResumeSetup";
 
-type Tab = "evaluate" | "tracker" | "resume" | "about";
+type Tab = "evaluate" | "tracker" | "dashboard" | "resume" | "about";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "evaluate", label: "Evaluate" },
   { id: "tracker", label: "Tracker" },
+  { id: "dashboard", label: "Dashboard" },
   { id: "resume", label: "Resume" },
   { id: "about", label: "About you" },
 ];
@@ -247,6 +249,7 @@ export default function App() {
             onDelete={deleteEntry}
           />
         )}
+        {tab === "dashboard" && <DashboardTab entries={entries} />}
         {tab === "resume" && (
           <ResumeSetup resume={resume} setResume={setResume} setResumeFont={setResumeFont} />
         )}

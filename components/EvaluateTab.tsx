@@ -57,6 +57,14 @@ export default function EvaluateTab({
   const [ownFileName, setOwnFileName] = useState("");
   const ownFileInput = useRef<HTMLInputElement>(null);
 
+  const [baseOverride, setBaseOverride] = useState<{
+    text: string;
+    label: string;
+    reason: string;
+  } | null>(null);
+  const [findingBest, setFindingBest] = useState(false);
+  const effectiveResume = baseOverride?.text || resume;
+
   const [runningStage, setRunningStage] = useState<Stage | null>(null);
   const [error, setError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
@@ -75,7 +83,7 @@ export default function EvaluateTab({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         stage,
-        resume,
+        resume: effectiveResume,
         aboutMe,
         jobDescription: draft.jobDescription,
         companyName: draft.company,
@@ -93,6 +101,37 @@ export default function EvaluateTab({
     setFinalResumePdfUrl(null);
   }
 
+  function resetDownstream() {
+    setStages(EMPTY_STAGES);
+    setFinalResume("");
+    setOwnResumePdf(null);
+    invalidateFinalResumePdf();
+  }
+
+  async function findBestResume() {
+    setError("");
+    setSavedMessage("");
+    setFindingBest(true);
+    try {
+      const res = await fetch("/api/best-resume", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't find a best resume.");
+      setBaseOverride({ text: data.text, label: data.label, reason: data.reason });
+      resetDownstream();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't find a best resume.");
+    } finally {
+      setFindingBest(false);
+    }
+  }
+
+  function resetToMasterResume() {
+    setBaseOverride(null);
+    setError("");
+    setSavedMessage("");
+    resetDownstream();
+  }
+
   async function runAnalysis() {
     setError("");
     setSavedMessage("");
@@ -100,10 +139,7 @@ export default function EvaluateTab({
       setError("Add a job description first.");
       return;
     }
-    setStages(EMPTY_STAGES);
-    setFinalResume("");
-    setOwnResumePdf(null);
-    invalidateFinalResumePdf();
+    resetDownstream();
     setRunningStage("analysis");
     try {
       const analysis = await callStage("analysis", {});
@@ -160,7 +196,7 @@ export default function EvaluateTab({
     setSavedMessage("");
     setRunningStage("review");
     try {
-      const priorResume = finalResume.trim() || resume;
+      const priorResume = finalResume.trim() || effectiveResume;
       const review = await callStage("review", { priorAnalysis: stages.analysis, priorResume });
       setStages((s) => ({ ...s, review }));
     } catch (e) {
@@ -200,7 +236,7 @@ export default function EvaluateTab({
     setError("");
     setSaving(true);
     try {
-      const resumeText = finalResume.trim() || resume;
+      const resumeText = finalResume.trim() || effectiveResume;
       const [resumePdf, reportBlob] = await Promise.all([
         ownResumePdf ? Promise.resolve(ownResumePdf) : fetchPdfBlob(resumeText, "resume").then(blobToDataUrl),
         fetchPdfBlob(buildReportForPdf(stages, draft), "report"),
@@ -243,11 +279,35 @@ export default function EvaluateTab({
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
-      <div className="flex items-center justify-between text-xs text-muted">
-        <span>{resume.slice(0, 60)}{resume.length > 60 ? "…" : ""}</span>
-        <button onClick={onReplaceResume} className="text-ink underline underline-offset-2">
-          Replace
-        </button>
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+          <span>
+            {baseOverride && <span className="text-ink">{baseOverride.label} — </span>}
+            {effectiveResume.slice(0, 60)}
+            {effectiveResume.length > 60 ? "…" : ""}
+          </span>
+          <div className="flex items-center gap-3">
+            {baseOverride && (
+              <button
+                onClick={resetToMasterResume}
+                className="text-ink underline underline-offset-2"
+              >
+                Use master resume
+              </button>
+            )}
+            <button
+              onClick={findBestResume}
+              disabled={findingBest}
+              className="text-ink underline underline-offset-2 disabled:opacity-50"
+            >
+              {findingBest ? "Finding…" : "Use best from history"}
+            </button>
+            <button onClick={onReplaceResume} className="text-ink underline underline-offset-2">
+              Edit master
+            </button>
+          </div>
+        </div>
+        {baseOverride?.reason && <p className="text-xs text-muted">{baseOverride.reason}</p>}
       </div>
 
       {savedMessage && (
