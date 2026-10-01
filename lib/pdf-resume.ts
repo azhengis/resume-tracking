@@ -312,7 +312,10 @@ function parseResumeLines(text: string): ResumeLine[] {
   return out;
 }
 
-export async function renderResumePdf(text: string, fontStyle: FontStyle): Promise<Uint8Array> {
+export async function renderResumePdf(
+  text: string,
+  fontStyle: FontStyle,
+): Promise<{ bytes: Uint8Array; pageCount: number }> {
   const fonts = FONT_MAP[fontStyle] ?? FONT_MAP["sans-serif"];
   const doc = await PDFDocument.create();
   const regular = await doc.embedFont(fonts.regular);
@@ -503,5 +506,5 @@ export async function renderResumePdf(text: string, fontStyle: FontStyle): Promi
     }
   }
 
-  return doc.save();
+  return { bytes: await doc.save(), pageCount: doc.getPageCount() };
 }

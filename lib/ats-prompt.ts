@@ -468,9 +468,15 @@ Do not include anything else.`,
 
 This is stage 2 of a 3-stage pipeline. Stage 1's analysis (job description breakdown, ATS simulation, match matrix, weaknesses, enhancement opportunities) has already run and already been shown to me — it's included below as PRIOR ANALYSIS. Use it to inform the rewrite. Do not repeat its content or re-explain it.
 
-Return only the following, using these exact Markdown headings, in this order:
+Return only the following, using these exact Markdown headings, in this order. All three headings are mandatory and must appear literally, even "## Tailored Resume" immediately below — a parser splits your response on these exact headings, so skipping one merges sections together and breaks it.
 
 ## Tailored Resume
+
+Two rules govern this rewrite, above everything else:
+
+1. **Leave strong bullets alone.** If a bullet already clearly demonstrates relevant, quantified impact, keep its wording — do not rewrite something that already works just to produce a diff. Spend your rewriting effort on bullets that are generic, vague, or misaligned with this job, and especially on the SKILLS section, which should mirror this job description's own terminology as closely as my real skills honestly allow — that section is where ATS keyword-matching matters most, more than anywhere else in the resume.
+2. **This must fit on one page.** Assume a standard single-page resume holds roughly 400-500 words of bullets/descriptions (excluding name, contact line, and section headers). If the rewritten content would run longer than that, cut before you ship it: drop the least-relevant-to-this-job bullets and projects first, then tighten wording on what remains. Cap most entries at 2-3 bullets; allow at most 4 on the single most relevant entry. A shorter, sharper one-page resume beats a longer one that spills to page two.
+
 A complete, ATS-friendly resume rewritten for this specific job, following the Technical Resume Optimization and Technical Credibility Review instructions above. Include only confirmed information; mark anything that depends on confirmation inline as \`[UNCONFIRMED: ...]\` rather than stating it as fact.
 
 This section gets parsed directly into a PDF layout (centered header, ruled section headers, two-column entry rows, bullet lists, a two-column skills grid), so follow this exact plain-text convention — no Markdown at all inside this section (no \`**bold**\`, \`_italics_\`, backticks, or \`#\` headers):
@@ -511,8 +517,24 @@ Programming: @s Python, SQL, Java
 Data Science: @s Statistical Modeling, Classification
 \`\`\`
 
-## Optional Enhanced Versions
-Alternate bullets or sections that could replace parts of the tailored resume once I confirm specific unconfirmed details. Clearly distinguish these from the finalized resume above — they are not part of it yet.
+## Suggested Additions
+
+This is for anything that didn't make it into the Tailored Resume above because it's a new idea rather than confirmed, existing experience — a stronger way to frame a real skill that isn't fully shown yet, or (when there's a real gap between my resume and this job) a concrete, scoped project idea I could realistically build quickly and then add for real. None of this is part of the Tailored Resume above — it only gets added if I choose to.
+
+Propose 0-4 of these. Fewer, sharper suggestions beat a padded list — if the Tailored Resume above already covers this job well, say so and propose none.
+
+Format each one exactly like this, so it can be parsed and offered to me as a checklist:
+
+\`\`\`
+### SUGGESTION 1
+TITLE: <a short name for this suggestion, under 8 words>
+WHY: <one sentence — what gap this closes for this specific job>
+TARGET: <exact text that already appears in the Tailored Resume above, to add this right after — either a section header like "PROJECTS" or "SKILLS", or an entry's org/project name>
+ADD:
+<the exact plain-text lines to insert, following the same convention as the Tailored Resume above — "- " bullets to extend an existing entry, or for a whole new project, a title line followed by its own "- " bullets>
+\`\`\`
+
+Repeat that block (TITLE/WHY/TARGET/ADD) for each suggestion, numbering them SUGGESTION 1, SUGGESTION 2, etc. Do not wrap them in the triple-backtick fence in your actual output — that's shown above only to mark where the format starts and ends.
 
 ## Before vs. After Changes
 The most important changes from my original resume to the tailored one, and why each improves alignment with the job.
@@ -576,6 +598,84 @@ export const STAGE_LABELS: Record<Stage, string> = {
 
 /** Pulls just the "## Tailored Resume" section out of the resume-stage output. */
 export function extractTailoredResume(stageResumeOutput: string): string {
-  const match = stageResumeOutput.match(/## Tailored Resume\s*\n([\s\S]*?)(?=\n## |\s*$)/i);
-  return (match ? match[1] : stageResumeOutput).trim();
+  const withHeading = stageResumeOutput.match(/## Tailored Resume\s*\n([\s\S]*?)(?=\n## |\s*$)/i);
+  if (withHeading) return withHeading[1].trim();
+
+  // The model occasionally skips the "## Tailored Resume" heading itself even
+  // though it reliably includes the sections after it — fall back to
+  // everything before the next known heading rather than swallowing those
+  // sections whole into what's supposed to be just the resume text.
+  const nextHeading = stageResumeOutput.search(
+    /\n##\s*(Suggested Additions|Optional Enhanced Versions|Before vs\.?\s*After Changes)/i,
+  );
+  return (nextHeading === -1 ? stageResumeOutput : stageResumeOutput.slice(0, nextHeading)).trim();
+}
+
+export interface ResumeSuggestion {
+  id: string;
+  title: string;
+  why: string;
+  target: string;
+  add: string;
+}
+
+/** Pulls the checklist-style "## Suggested Additions" out of the resume-stage output. */
+export function parseSuggestions(stageResumeOutput: string): ResumeSuggestion[] {
+  const section = stageResumeOutput.match(
+    /## Suggested Additions\s*\n([\s\S]*?)(?=\n## |\s*$)/i,
+  )?.[1];
+  if (!section) return [];
+
+  const blocks = section
+    .split(/(?=###\s*SUGGESTION\s*\d+)/i)
+    .map((b) => b.trim())
+    .filter(Boolean);
+
+  return blocks
+    .map((block, i) => {
+      const title = block.match(/TITLE:\s*(.+)/i)?.[1]?.trim() ?? `Suggestion ${i + 1}`;
+      const why = block.match(/WHY:\s*(.+)/i)?.[1]?.trim() ?? "";
+      const target = block.match(/TARGET:\s*(.+)/i)?.[1]?.trim() ?? "";
+      const add = block.match(/ADD:\s*\n([\s\S]*)/i)?.[1]?.trim() ?? "";
+      return { id: `s${i + 1}`, title, why, target, add };
+    })
+    .filter((s) => s.add && s.target);
+}
+
+/** Removes the "## Suggested Additions" block, for display paths that render it separately as a checklist. */
+export function stripSuggestionsSection(stageResumeOutput: string): string {
+  return stageResumeOutput
+    .replace(/## Suggested Additions\s*\n[\s\S]*?(?=\n## |\s*$)/i, "")
+    .trim();
+}
+
+/**
+ * Inserts a suggestion's content at the end of the block it targets (the
+ * matching section header or entry line), relying on this app's own
+ * convention of a blank line between every entry/section.
+ */
+export function applySuggestion(resumeText: string, suggestion: ResumeSuggestion): string {
+  const lines = resumeText.split("\n");
+  const targetLower = suggestion.target.toLowerCase();
+  const idx = lines.findIndex((l) => l.toLowerCase().includes(targetLower));
+
+  const addLines = suggestion.add.trim().split("\n");
+  // A bullet extends the existing entry directly; anything else (a new
+  // project's title line) is a new entry and needs its own blank-line gap.
+  const isNewEntry = !addLines[0].trim().startsWith("-");
+  const block = isNewEntry ? ["", ...addLines] : addLines;
+
+  if (idx === -1) {
+    return `${resumeText.trim()}\n\n${addLines.join("\n")}\n`;
+  }
+
+  let insertAt = lines.length;
+  for (let i = idx + 1; i < lines.length; i++) {
+    if (lines[i].trim() === "") {
+      insertAt = i;
+      break;
+    }
+  }
+
+  return [...lines.slice(0, insertAt), ...block, ...lines.slice(insertAt)].join("\n");
 }

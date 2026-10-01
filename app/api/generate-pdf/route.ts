@@ -20,15 +20,22 @@ export async function POST(req: NextRequest) {
   const isReport = kind === "report";
 
   try {
-    const pdfBytes = isReport
-      ? await renderReportPdf(text, style)
-      : await renderResumePdf(text, style);
-    return new NextResponse(Buffer.from(pdfBytes), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${isReport ? "analysis" : "resume"}.pdf"`,
-      },
-    });
+    const headers: Record<string, string> = {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${isReport ? "analysis" : "resume"}.pdf"`,
+    };
+
+    let pdfBytes: Uint8Array;
+    if (isReport) {
+      pdfBytes = await renderReportPdf(text, style);
+    } else {
+      const result = await renderResumePdf(text, style);
+      pdfBytes = result.bytes;
+      headers["X-Page-Count"] = String(result.pageCount);
+      headers["Access-Control-Expose-Headers"] = "X-Page-Count";
+    }
+
+    return new NextResponse(Buffer.from(pdfBytes), { headers });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Couldn't generate the PDF." }, { status: 500 });

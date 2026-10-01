@@ -6,7 +6,14 @@ import { Field, inputClass, textareaClass } from "@/components/Field";
 import SectionedReport from "@/components/SectionedReport";
 import PdfInlineViewer from "@/components/PdfInlineViewer";
 import type { TrackerEntry } from "@/lib/types";
-import { extractTailoredResume, type Stage } from "@/lib/ats-prompt";
+import {
+  extractTailoredResume,
+  parseSuggestions,
+  applySuggestion,
+  stripSuggestionsSection,
+  type ResumeSuggestion,
+  type Stage,
+} from "@/lib/ats-prompt";
 import { blobToDataUrl } from "@/lib/pdf-client";
 
 interface Draft {
@@ -57,6 +64,9 @@ export default function EvaluateTab({
   const [ownFileName, setOwnFileName] = useState("");
   const ownFileInput = useRef<HTMLInputElement>(null);
 
+  const [suggestions, setSuggestions] = useState<ResumeSuggestion[]>([]);
+  const [appliedSuggestions, setAppliedSuggestions] = useState<Set<string>>(new Set());
+
   const [baseOverride, setBaseOverride] = useState<{
     text: string;
     label: string;
@@ -71,6 +81,7 @@ export default function EvaluateTab({
   const [saving, setSaving] = useState(false);
   const [preparingPdf, setPreparingPdf] = useState(false);
   const [finalResumePdfUrl, setFinalResumePdfUrl] = useState<string | null>(null);
+  const [finalResumePageCount, setFinalResumePageCount] = useState<number | null>(null);
 
   const update = (patch: Partial<Draft>) => {
     setSavedMessage("");
@@ -99,6 +110,7 @@ export default function EvaluateTab({
   function invalidateFinalResumePdf() {
     if (finalResumePdfUrl) URL.revokeObjectURL(finalResumePdfUrl);
     setFinalResumePdfUrl(null);
+    setFinalResumePageCount(null);
   }
 
   function resetDownstream() {
@@ -106,6 +118,15 @@ export default function EvaluateTab({
     setFinalResume("");
     setOwnResumePdf(null);
     invalidateFinalResumePdf();
+    setSuggestions([]);
+    setAppliedSuggestions(new Set());
+  }
+
+  function addSuggestion(s: ResumeSuggestion) {
+    setFinalResume((prev) => applySuggestion(prev, s));
+    setAppliedSuggestions((prev) => new Set(prev).add(s.id));
+    if (ownResumePdf) setOwnResumePdf(null);
+    if (finalResumePdfUrl) invalidateFinalResumePdf();
   }
 
   async function findBestResume() {
@@ -161,6 +182,8 @@ export default function EvaluateTab({
       const resumeOut = await callStage("resume", { priorAnalysis: stages.analysis });
       setStages((s) => ({ ...s, resume: resumeOut }));
       setFinalResume(extractTailoredResume(resumeOut));
+      setSuggestions(parseSuggestions(resumeOut));
+      setAppliedSuggestions(new Set());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Resume generation failed.");
     } finally {
@@ -184,6 +207,8 @@ export default function EvaluateTab({
       setFinalResume(data.text);
       setOwnResumePdf(pdfDataUrl);
       invalidateFinalResumePdf();
+      setSuggestions([]);
+      setAppliedSuggestions(new Set());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed.");
     } finally {
@@ -206,7 +231,7 @@ export default function EvaluateTab({
     }
   }
 
-  async function fetchPdfBlob(text: string, kind: "resume" | "report") {
+  async function fetchPdfResponse(text: string, kind: "resume" | "report") {
     const res = await fetch("/api/generate-pdf", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -216,14 +241,21 @@ export default function EvaluateTab({
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || "Couldn't generate the PDF.");
     }
-    return res.blob();
+    return res;
+  }
+
+  async function fetchPdfBlob(text: string, kind: "resume" | "report") {
+    return (await fetchPdfResponse(text, kind)).blob();
   }
 
   async function prepareFinalResumePdf() {
     setError("");
     setPreparingPdf(true);
     try {
-      const blob = await fetchPdfBlob(finalResume, "resume");
+      const res = await fetchPdfResponse(finalResume, "resume");
+      const pages = Number(res.headers.get("X-Page-Count"));
+      setFinalResumePageCount(Number.isFinite(pages) && pages > 0 ? pages : null);
+      const blob = await res.blob();
       setFinalResumePdfUrl(URL.createObjectURL(blob));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't generate the PDF.");
@@ -439,7 +471,41 @@ export default function EvaluateTab({
 
           {stages.resume && (
             <div className="rounded-lg border border-border bg-surface p-6">
-              <SectionedReport text={stages.resume} />
+              <SectionedReport text={stripSuggestionsSection(stages.resume)} />
+            </div>
+          )}
+
+          {suggestions.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Suggested additions
+              </h4>
+              {suggestions.map((s) => {
+                const applied = appliedSuggestions.has(s.id);
+                return (
+                  <div
+                    key={s.id}
+                    className="rounded-lg border border-border bg-surface p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-ink">{s.title}</p>
+                        <p className="mt-1 text-xs text-muted">{s.why}</p>
+                      </div>
+                      <button
+                        onClick={() => addSuggestion(s)}
+                        disabled={applied}
+                        className="shrink-0 rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-soft disabled:border-border disabled:text-muted"
+                      >
+                        {applied ? "Added ✓" : "Add to resume"}
+                      </button>
+                    </div>
+                    <pre className="mt-3 whitespace-pre-wrap rounded-md bg-bg p-3 font-mono text-xs text-muted">
+                      {s.add}
+                    </pre>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -457,6 +523,17 @@ export default function EvaluateTab({
                   />
                 ) : finalResumePdfUrl ? (
                   <div className="flex items-center gap-3">
+                    {finalResumePageCount && (
+                      <span
+                        className={
+                          finalResumePageCount > 1 ? "text-xs text-danger" : "text-xs text-muted"
+                        }
+                      >
+                        {finalResumePageCount > 1
+                          ? `${finalResumePageCount} pages — trim to fit one`
+                          : "Fits one page"}
+                      </span>
+                    )}
                     <PdfInlineViewer
                       url={finalResumePdfUrl}
                       filename={`${draft.company.trim() || "resume"}.pdf`}
