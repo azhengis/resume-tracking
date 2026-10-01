@@ -19,6 +19,7 @@ export async function GET() {
     resume: profile.resume ?? "",
     resumeFont: profile.resumeFont ?? "sans-serif",
     aboutMe: profile.aboutMe ?? "",
+    googleConnected: Boolean(profile.googleRefreshToken),
     entries: (entryRows as TrackerRow[]).map(rowToEntry),
   });
 }

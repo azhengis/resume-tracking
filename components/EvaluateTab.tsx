@@ -44,12 +44,14 @@ export default function EvaluateTab({
   resume,
   resumeFont,
   aboutMe,
+  googleConnected,
   onReplaceResume,
   onSaveEntry,
 }: {
   resume: string;
   resumeFont: string;
   aboutMe: string;
+  googleConnected: boolean;
   onReplaceResume: () => void;
   onSaveEntry: (entry: TrackerEntry) => Promise<void>;
 }) {
@@ -82,6 +84,7 @@ export default function EvaluateTab({
   const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null);
   const [previewPageCount, setPreviewPageCount] = useState<number | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [creatingDoc, setCreatingDoc] = useState(false);
   const livePreviewUrlRef = useRef<string | null>(null);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -247,6 +250,30 @@ export default function EvaluateTab({
 
   async function fetchPdfBlob(text: string, kind: "resume" | "report") {
     return (await fetchPdfResponse(text, kind)).blob();
+  }
+
+  async function openInGoogleDocs() {
+    setError("");
+    setCreatingDoc(true);
+    // Open the tab synchronously with the click so the browser doesn't
+    // treat the later navigation (after the await) as an unsolicited popup.
+    const tab = window.open("", "_blank");
+    try {
+      const res = await fetch("/api/google/create-doc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: finalResume, company: draft.company }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't create the Google Doc.");
+      if (tab) tab.location.href = data.url;
+      else window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      tab?.close();
+      setError(e instanceof Error ? e.message : "Couldn't create the Google Doc.");
+    } finally {
+      setCreatingDoc(false);
+    }
   }
 
   // Live preview: regenerate the real PDF a short moment after the text
@@ -552,6 +579,22 @@ export default function EvaluateTab({
                   >
                     Download PDF
                   </a>
+                  {googleConnected ? (
+                    <button
+                      onClick={openInGoogleDocs}
+                      disabled={creatingDoc || !finalResume.trim()}
+                      className="text-xs font-medium text-accent hover:underline disabled:opacity-40"
+                    >
+                      {creatingDoc ? "Opening…" : "Edit in Google Docs"}
+                    </button>
+                  ) : (
+                    <a
+                      href="/api/google/auth"
+                      className="text-xs font-medium text-muted hover:text-ink hover:underline"
+                    >
+                      Connect Google Docs
+                    </a>
+                  )}
                 </div>
               </div>
               <div className="grid gap-4 md:grid-cols-2">

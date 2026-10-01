@@ -63,11 +63,21 @@ export default function App() {
   const [resumeFont, setResumeFontLocal] = useState("sans-serif");
   const [aboutMe, setAboutMeLocal] = useState("");
   const [entries, setEntriesLocal] = useState<TrackerEntry[]>([]);
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [googleMessage, setGoogleMessage] = useState("");
   const [migration, setMigration] = useState<
     (MigrationCandidate & { migrating: boolean }) | null
   >(null);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googleStatus = params.get("google");
+    if (googleStatus) {
+      params.delete("google");
+      const query = params.toString();
+      window.history.replaceState({}, "", query ? `?${query}` : window.location.pathname);
+    }
+
     fetch("/api/state")
       .then((r) => r.json())
       .then((data) => {
@@ -75,6 +85,14 @@ export default function App() {
         setResumeFontLocal(data.resumeFont ?? "sans-serif");
         setAboutMeLocal(data.aboutMe ?? "");
         setEntriesLocal(data.entries ?? []);
+        setGoogleConnected(Boolean(data.googleConnected));
+        if (googleStatus) {
+          setGoogleMessage(
+            googleStatus === "connected"
+              ? "Google Docs connected."
+              : "Couldn't connect Google Docs — try again.",
+          );
+        }
 
         if (!data.resume) {
           const localResume = readLocalString("rs:resume");
@@ -232,11 +250,20 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-8">
+        {googleMessage && (
+          <div className="mb-4 flex items-center justify-between rounded-md border border-border bg-surface px-4 py-2 text-xs text-muted">
+            <span>{googleMessage}</span>
+            <button onClick={() => setGoogleMessage("")} className="text-muted hover:text-ink">
+              Dismiss
+            </button>
+          </div>
+        )}
         {tab === "evaluate" && (
           <EvaluateTab
             resume={resume}
             resumeFont={resumeFont}
             aboutMe={aboutMe}
+            googleConnected={googleConnected}
             onReplaceResume={() => setTab("resume")}
             onSaveEntry={addEntry}
           />

@@ -226,7 +226,7 @@ export async function renderReportPdf(text: string, fontStyle: FontStyle): Promi
 // and a two-column skills grid.
 // ---------------------------------------------------------------------------
 
-type ResumeLine =
+export type ResumeLine =
   | { kind: "blank" }
   | { kind: "name"; text: string }
   | { kind: "contact"; text: string }
@@ -243,7 +243,7 @@ function isAllCapsHeader(line: string): boolean {
   return letters.length >= 2 && letters === letters.toUpperCase() && line.length <= 48;
 }
 
-function parseResumeLines(text: string): ResumeLine[] {
+export function parseResumeLines(text: string): ResumeLine[] {
   const raw = text.split("\n");
   const out: ResumeLine[] = [];
   let pendingSkills: { label: string; items: string }[] = [];
