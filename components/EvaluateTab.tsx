@@ -1,10 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocalStorage } from "@/lib/useLocalStorage";
 import { Field, inputClass, textareaClass } from "@/components/Field";
 import SectionedReport from "@/components/SectionedReport";
-import PdfInlineViewer from "@/components/PdfInlineViewer";
 import type { TrackerEntry } from "@/lib/types";
 import {
   extractTailoredResume,
@@ -79,9 +78,12 @@ export default function EvaluateTab({
   const [error, setError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [preparingPdf, setPreparingPdf] = useState(false);
-  const [finalResumePdfUrl, setFinalResumePdfUrl] = useState<string | null>(null);
-  const [finalResumePageCount, setFinalResumePageCount] = useState<number | null>(null);
+
+  const [livePreviewUrl, setLivePreviewUrl] = useState<string | null>(null);
+  const [previewPageCount, setPreviewPageCount] = useState<number | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const livePreviewUrlRef = useRef<string | null>(null);
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const update = (patch: Partial<Draft>) => {
     setSavedMessage("");
@@ -107,17 +109,18 @@ export default function EvaluateTab({
     return data.section as string;
   }
 
-  function invalidateFinalResumePdf() {
-    if (finalResumePdfUrl) URL.revokeObjectURL(finalResumePdfUrl);
-    setFinalResumePdfUrl(null);
-    setFinalResumePageCount(null);
+  function invalidatePreview() {
+    if (livePreviewUrlRef.current) URL.revokeObjectURL(livePreviewUrlRef.current);
+    livePreviewUrlRef.current = null;
+    setLivePreviewUrl(null);
+    setPreviewPageCount(null);
   }
 
   function resetDownstream() {
     setStages(EMPTY_STAGES);
     setFinalResume("");
     setOwnResumePdf(null);
-    invalidateFinalResumePdf();
+    invalidatePreview();
     setSuggestions([]);
     setAppliedSuggestions(new Set());
   }
@@ -126,7 +129,6 @@ export default function EvaluateTab({
     setFinalResume((prev) => applySuggestion(prev, s));
     setAppliedSuggestions((prev) => new Set(prev).add(s.id));
     if (ownResumePdf) setOwnResumePdf(null);
-    if (finalResumePdfUrl) invalidateFinalResumePdf();
   }
 
   async function findBestResume() {
@@ -176,7 +178,6 @@ export default function EvaluateTab({
     setError("");
     setSavedMessage("");
     setOwnResumePdf(null);
-    invalidateFinalResumePdf();
     setRunningStage("resume");
     try {
       const resumeOut = await callStage("resume", { priorAnalysis: stages.analysis });
@@ -206,7 +207,7 @@ export default function EvaluateTab({
       setStages((s) => ({ ...s, resume: "" }));
       setFinalResume(data.text);
       setOwnResumePdf(pdfDataUrl);
-      invalidateFinalResumePdf();
+      invalidatePreview();
       setSuggestions([]);
       setAppliedSuggestions(new Set());
     } catch (e) {
@@ -248,21 +249,33 @@ export default function EvaluateTab({
     return (await fetchPdfResponse(text, kind)).blob();
   }
 
-  async function prepareFinalResumePdf() {
-    setError("");
-    setPreparingPdf(true);
-    try {
-      const res = await fetchPdfResponse(finalResume, "resume");
-      const pages = Number(res.headers.get("X-Page-Count"));
-      setFinalResumePageCount(Number.isFinite(pages) && pages > 0 ? pages : null);
-      const blob = await res.blob();
-      setFinalResumePdfUrl(URL.createObjectURL(blob));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't generate the PDF.");
-    } finally {
-      setPreparingPdf(false);
-    }
-  }
+  // Live preview: regenerate the real PDF a short moment after the text
+  // settles, so the preview always matches what would actually print.
+  useEffect(() => {
+    if (ownResumePdf || !finalResume.trim()) return;
+    if (previewTimer.current) clearTimeout(previewTimer.current);
+    previewTimer.current = setTimeout(async () => {
+      setPreviewLoading(true);
+      try {
+        const res = await fetchPdfResponse(finalResume, "resume");
+        const pages = Number(res.headers.get("X-Page-Count"));
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        if (livePreviewUrlRef.current) URL.revokeObjectURL(livePreviewUrlRef.current);
+        livePreviewUrlRef.current = url;
+        setLivePreviewUrl(url);
+        setPreviewPageCount(Number.isFinite(pages) && pages > 0 ? pages : null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't update the preview.");
+      } finally {
+        setPreviewLoading(false);
+      }
+    }, 900);
+    return () => {
+      if (previewTimer.current) clearTimeout(previewTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finalResume, ownResumePdf]);
 
   async function saveToTracker() {
     setError("");
@@ -298,7 +311,9 @@ export default function EvaluateTab({
       setFinalResume("");
       setOwnResumePdf(null);
       setOwnFileName("");
-      invalidateFinalResumePdf();
+      invalidatePreview();
+      setSuggestions([]);
+      setAppliedSuggestions(new Set());
       setSavedMessage(`Saved "${company}" to the tracker.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save to the tracker.");
@@ -515,57 +530,55 @@ export default function EvaluateTab({
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
                   Final resume
                 </h4>
-                {ownResumePdf ? (
-                  <PdfInlineViewer
-                    url={ownResumePdf}
-                    filename={`${draft.company.trim() || "resume"}.pdf`}
-                    label="PDF"
-                  />
-                ) : finalResumePdfUrl ? (
-                  <div className="flex items-center gap-3">
-                    {finalResumePageCount && (
-                      <span
-                        className={
-                          finalResumePageCount > 1 ? "text-xs text-danger" : "text-xs text-muted"
-                        }
-                      >
-                        {finalResumePageCount > 1
-                          ? `${finalResumePageCount} pages — trim to fit one`
-                          : "Fits one page"}
-                      </span>
-                    )}
-                    <PdfInlineViewer
-                      url={finalResumePdfUrl}
-                      filename={`${draft.company.trim() || "resume"}.pdf`}
-                      label="PDF"
-                    />
-                    <button
-                      onClick={invalidateFinalResumePdf}
-                      className="text-xs text-muted hover:text-ink"
+                <div className="flex items-center gap-3">
+                  {!ownResumePdf && previewLoading && (
+                    <span className="text-xs text-muted">Updating preview…</span>
+                  )}
+                  {!ownResumePdf && !previewLoading && previewPageCount && (
+                    <span
+                      className={previewPageCount > 1 ? "text-xs text-danger" : "text-xs text-muted"}
                     >
-                      Regenerate
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={prepareFinalResumePdf}
-                    disabled={preparingPdf || !finalResume.trim()}
-                    className="rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent-soft disabled:opacity-40"
+                      {previewPageCount > 1
+                        ? `${previewPageCount} pages — trim to fit one`
+                        : "Fits one page"}
+                    </span>
+                  )}
+                  <a
+                    href={ownResumePdf || livePreviewUrl || undefined}
+                    download={`${draft.company.trim() || "resume"}.pdf`}
+                    className={`text-xs font-medium text-accent hover:underline ${
+                      ownResumePdf || livePreviewUrl ? "" : "pointer-events-none opacity-40"
+                    }`}
                   >
-                    {preparingPdf ? "Generating…" : "Generate PDF"}
-                  </button>
-                )}
+                    Download PDF
+                  </a>
+                </div>
               </div>
-              <textarea
-                className={textareaClass}
-                rows={16}
-                value={finalResume}
-                onChange={(e) => {
-                  setFinalResume(e.target.value);
-                  if (ownResumePdf) setOwnResumePdf(null);
-                  if (finalResumePdfUrl) invalidateFinalResumePdf();
-                }}
-              />
+              <div className="grid gap-4 md:grid-cols-2">
+                <textarea
+                  className={textareaClass}
+                  rows={24}
+                  value={finalResume}
+                  onChange={(e) => {
+                    setFinalResume(e.target.value);
+                    if (ownResumePdf) setOwnResumePdf(null);
+                  }}
+                />
+                <div className="overflow-hidden rounded-md border border-border bg-bg" style={{ minHeight: 420 }}>
+                  {ownResumePdf || livePreviewUrl ? (
+                    <iframe
+                      src={ownResumePdf || livePreviewUrl || undefined}
+                      title="Resume preview"
+                      className="h-full w-full"
+                      style={{ minHeight: 420 }}
+                    />
+                  ) : (
+                    <div className="flex h-full min-h-[420px] items-center justify-center text-xs text-muted">
+                      {previewLoading ? "Generating preview…" : "Preview will appear here"}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
