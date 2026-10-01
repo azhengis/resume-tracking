@@ -235,7 +235,7 @@ export default function EvaluateTab({
     const res = await fetch("/api/generate-pdf", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, fontStyle: resumeFont, kind }),
+      body: JSON.stringify({ text, fontStyle: resumeFont, kind, company: draft.company }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));

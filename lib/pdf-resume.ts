@@ -4,8 +4,8 @@ export type FontStyle = "serif" | "sans-serif" | "monospace";
 
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
-const MARGIN_X = 70.87; // ~2.5cm, matching a common LaTeX-resume-template margin
-const MARGIN_Y = 48;
+const MARGIN_X = 43.2; // 0.6in
+const MARGIN_Y = 43.2; // 0.6in
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
 
 const FONT_MAP: Record<
@@ -29,15 +29,17 @@ const FONT_MAP: Record<
   },
 };
 
-const UNICODE_REPLACEMENTS: Record<string, string> = {
-  "‘": "'",
-  "’": "'",
-  "“": '"',
-  "”": '"',
-  "–": "-",
-  "—": "-",
-  "…": "...",
-  " ": " ",
+// WinAnsi (cp1252) maps these specific Unicode code points into its 0x80-0x9F
+// byte range — pdf-lib's standard fonts render them natively. Everything else
+// outside 0x00-0xFF (emoji, Greek, CJK, math symbols, arrows, ...) isn't
+// encodable and gets dropped, after a few common ones are converted to ASCII.
+const WINANSI_EXTRA = new Set([
+  0x20ac, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030,
+  0x0160, 0x2039, 0x0152, 0x017d, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022,
+  0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x017e, 0x0178,
+]);
+
+const EXTRA_REPLACEMENTS: Record<string, string> = {
   "→": "->",
   "←": "<-",
   "✓": "OK",
@@ -50,13 +52,20 @@ const UNICODE_REPLACEMENTS: Record<string, string> = {
   "÷": "/",
 };
 
-/** pdf-lib's standard fonts only encode WinAnsi (roughly Latin-1) — strip anything else. */
+/** pdf-lib's standard fonts encode WinAnsi — allow that set through, drop anything else. */
 function sanitizeForPdf(text: string): string {
-  const replaced = text.replace(
-    /[‘’“”–—… →←✓✔✗✘≥≤×÷]/g,
-    (ch) => UNICODE_REPLACEMENTS[ch] ?? ch,
-  );
-  return replaced.replace(/[^\x00-\xff]/g, "");
+  const replaced = text.replace(/[→←✓✔✗✘≥≤×÷]/g, (ch) => EXTRA_REPLACEMENTS[ch] ?? ch);
+  return Array.from(replaced)
+    .filter((ch) => {
+      const code = ch.codePointAt(0) ?? 0;
+      return code <= 0xff || WINANSI_EXTRA.has(code);
+    })
+    .join("");
+}
+
+/** Normalizes a date-range string: real en dash with spaces, "Present" capitalized. */
+function normalizeDateRange(text: string): string {
+  return text.replace(/\s-\s/g, " – ").replace(/\bpresent\b/gi, "Present");
 }
 
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -312,16 +321,27 @@ function parseResumeLines(text: string): ResumeLine[] {
   return out;
 }
 
+function isLinkSegment(seg: string): boolean {
+  const s = seg.trim();
+  if (!s) return false;
+  if (/@/.test(s)) return true;
+  if (/^https?:\/\//i.test(s)) return true;
+  if (/linkedin\.com|github\.com/i.test(s)) return true;
+  if (/^(linkedin|github|portfolio|website)$/i.test(s)) return true;
+  return false;
+}
+
 export async function renderResumePdf(
   text: string,
   fontStyle: FontStyle,
+  company?: string,
 ): Promise<{ bytes: Uint8Array; pageCount: number }> {
   const fonts = FONT_MAP[fontStyle] ?? FONT_MAP["sans-serif"];
   const doc = await PDFDocument.create();
   const regular = await doc.embedFont(fonts.regular);
   const bold = await doc.embedFont(fonts.bold);
   const italic = await doc.embedFont(fonts.italic);
-  const ink = rgb(0.06, 0.06, 0.06);
+  const ink = rgb(0, 0, 0);
 
   let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   let y = PAGE_HEIGHT - MARGIN_Y;
@@ -359,7 +379,7 @@ export async function renderResumePdf(
   };
 
   const drawRow = (left: string, right: string, font: PDFFont, size: number) => {
-    const lineHeight = size * 1.3;
+    const lineHeight = size * 1.15;
     ensureSpace(lineHeight);
     page.drawText(left, { x: MARGIN_X, y, size, font, color: ink });
     if (right) {
@@ -369,10 +389,44 @@ export async function renderResumePdf(
     y -= lineHeight;
   };
 
+  const drawContactLine = (contactText: string, font: PDFFont, size: number) => {
+    const segments = contactText
+      .split("|")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const sep = "  |  ";
+    const sepWidth = font.widthOfTextAtSize(sep, size);
+    const segWidths = segments.map((s) => font.widthOfTextAtSize(s, size));
+    const totalWidth =
+      segWidths.reduce((a, b) => a + b, 0) + sepWidth * Math.max(segments.length - 1, 0);
+
+    let x = (PAGE_WIDTH - totalWidth) / 2;
+    segments.forEach((seg, i) => {
+      page.drawText(seg, { x, y, size, font, color: ink });
+      if (isLinkSegment(seg)) {
+        page.drawLine({
+          start: { x, y: y - 1.5 },
+          end: { x: x + segWidths[i], y: y - 1.5 },
+          thickness: 0.5,
+          color: ink,
+        });
+      }
+      x += segWidths[i];
+      if (i < segments.length - 1) {
+        page.drawText(sep, { x, y, size, font, color: ink });
+        x += sepWidth;
+      }
+    });
+  };
+
+  let candidateName = "";
+
   const lines = parseResumeLines(text).map((l) => {
     const clean = (s: string) => sanitizeForPdf(s);
     switch (l.kind) {
       case "name":
+        candidateName = clean(l.text);
+        return { ...l, text: candidateName };
       case "contact":
       case "sectionHeader":
       case "entryTitle":
@@ -380,8 +434,9 @@ export async function renderResumePdf(
       case "body":
         return { ...l, text: clean(l.text) };
       case "entryBold":
-      case "entryItalic":
         return { ...l, left: clean(l.left), right: clean(l.right) };
+      case "entryItalic":
+        return { ...l, left: clean(l.left), right: normalizeDateRange(clean(l.right)) };
       case "skillsPair":
         return {
           ...l,
@@ -394,40 +449,32 @@ export async function renderResumePdf(
 
   for (const line of lines) {
     if (line.kind === "blank") {
-      y -= 7;
+      y -= 12;
       continue;
     }
 
     if (line.kind === "name") {
       const size = 18;
-      const lineHeight = size * 1.3;
+      const lineHeight = size * 1.15;
       ensureSpace(lineHeight);
       const width = bold.widthOfTextAtSize(line.text, size);
       page.drawText(line.text, { x: (PAGE_WIDTH - width) / 2, y, size, font: bold, color: ink });
-      y -= lineHeight + 2;
+      y -= lineHeight;
       continue;
     }
 
     if (line.kind === "contact") {
       const size = 10;
-      const lineHeight = size * 1.3;
+      const lineHeight = size * 1.15;
       ensureSpace(lineHeight);
-      const width = regular.widthOfTextAtSize(line.text, size);
-      page.drawText(line.text, {
-        x: (PAGE_WIDTH - width) / 2,
-        y,
-        size,
-        font: regular,
-        color: ink,
-      });
-      y -= lineHeight + 6;
+      drawContactLine(line.text, regular, size);
+      y -= lineHeight;
       continue;
     }
 
     if (line.kind === "sectionHeader") {
       const size = 11;
-      const lineHeight = size * 1.3;
-      y -= 4;
+      const lineHeight = size * 1.15;
       ensureSpace(lineHeight);
       page.drawText(line.text, { x: MARGIN_X, y, size, font: bold, color: ink });
       page.drawLine({
@@ -436,7 +483,7 @@ export async function renderResumePdf(
         thickness: 0.75,
         color: ink,
       });
-      y -= lineHeight + 2;
+      y -= lineHeight;
       continue;
     }
 
@@ -447,12 +494,11 @@ export async function renderResumePdf(
 
     if (line.kind === "entryItalic") {
       drawRow(line.left, line.right, italic, 10.5);
-      y -= 1;
       continue;
     }
 
     if (line.kind === "entryTitle") {
-      drawWrapped(line.text, bold, 10.5, MARGIN_X, CONTENT_WIDTH, 10.5 * 1.3);
+      drawWrapped(line.text, bold, 10.5, MARGIN_X, CONTENT_WIDTH, 10.5 * 1.15);
       continue;
     }
 
@@ -464,7 +510,7 @@ export async function renderResumePdf(
         size,
         MARGIN_X + 14,
         CONTENT_WIDTH - 14,
-        size * 1.3,
+        size * 1.15,
         "•  ",
       );
       continue;
@@ -472,7 +518,7 @@ export async function renderResumePdf(
 
     if (line.kind === "skillsPair") {
       const size = 10;
-      const lineHeight = size * 1.3;
+      const lineHeight = size * 1.15;
       const halfWidth = CONTENT_WIDTH / 2 - 8;
       const columnLines = line.pair.map((p) => {
         const combined = p.items ? `${p.label} ${p.items}` : p.label;
@@ -501,9 +547,13 @@ export async function renderResumePdf(
     }
 
     if (line.kind === "body") {
-      drawWrapped(line.text, regular, 10.5, MARGIN_X, CONTENT_WIDTH, 10.5 * 1.3);
+      drawWrapped(line.text, regular, 10.5, MARGIN_X, CONTENT_WIDTH, 10.5 * 1.15);
       continue;
     }
+  }
+
+  if (candidateName) {
+    doc.setTitle(company ? `${candidateName} Resume - ${company}` : `${candidateName} Resume`);
   }
 
   return { bytes: await doc.save(), pageCount: doc.getPageCount() };

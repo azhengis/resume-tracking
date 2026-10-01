@@ -475,19 +475,19 @@ Return only the following, using these exact Markdown headings, in this order. A
 Two rules govern this rewrite, above everything else:
 
 1. **Leave strong bullets alone.** If a bullet already clearly demonstrates relevant, quantified impact, keep its wording — do not rewrite something that already works just to produce a diff. Spend your rewriting effort on bullets that are generic, vague, or misaligned with this job, and especially on the SKILLS section, which should mirror this job description's own terminology as closely as my real skills honestly allow — that section is where ATS keyword-matching matters most, more than anywhere else in the resume.
-2. **This must fit on one page.** Assume a standard single-page resume holds roughly 400-500 words of bullets/descriptions (excluding name, contact line, and section headers). If the rewritten content would run longer than that, cut before you ship it: drop the least-relevant-to-this-job bullets and projects first, then tighten wording on what remains. Cap most entries at 2-3 bullets; allow at most 4 on the single most relevant entry. A shorter, sharper one-page resume beats a longer one that spills to page two.
+2. **This must fit on one page.** Assume a standard single-page resume holds roughly 400-500 words of bullets/descriptions (excluding name, contact line, and section headers). If the rewritten content would run longer than that, cut before you ship it: drop the least-relevant-to-this-job bullets and projects first, then tighten wording on what remains. Exactly 3 bullets per work-experience role, exactly 2 bullets per project. A shorter, sharper one-page resume beats a longer one that spills to page two. No summary or objective section.
 
 A complete, ATS-friendly resume rewritten for this specific job, following the Technical Resume Optimization and Technical Credibility Review instructions above. Include only confirmed information; mark anything that depends on confirmation inline as \`[UNCONFIRMED: ...]\` rather than stating it as fact.
 
 This section gets parsed directly into a PDF layout (centered header, ruled section headers, two-column entry rows, bullet lists, a two-column skills grid), so follow this exact plain-text convention — no Markdown at all inside this section (no \`**bold**\`, \`_italics_\`, backticks, or \`#\` headers):
 
 - Line 1: the candidate's name, nothing else.
-- Line 2: the contact line — city/state, phone, email, LinkedIn, GitHub, etc., separated by " | ".
+- Line 2: the contact line, in this order, omitting any that don't apply: City, ST | Phone | Email | LinkedIn | GitHub | Website — separated by " | ".
 - Section headers (EDUCATION, WORK EXPERIENCE, PROJECTS, SKILLS, etc.) sit alone on their own line, in capital letters, nothing else on that line.
 - For an entry with an organization/company and a location (e.g. a job or a school), write ONE line as \`Org or School Name @@ Location\` — this renders as a bold row with the org left-aligned and the location right-aligned.
-- Immediately below it, if there's a role/title/degree and a date range, write ONE line as \`Role or Degree @| Date range\` — this renders as an italic row, same left/right alignment. Omit this line if there's nothing to put on it.
+- Immediately below it, if there's a role/title/degree and a date range, write ONE line as \`Role or Degree @| Date range\` — this renders as an italic row, same left/right alignment. Omit this line if there's nothing to put on it. Write date ranges with full month names and "Present" capitalized, e.g. "June 2026 - Present" (a hyphen is fine — it gets converted to a proper dash automatically).
 - For an entry with no separate location/date columns (e.g. a project), just write the title as its own plain line (no \`@@\`/\`@|\`) — it renders bold, left-aligned.
-- Bullet points are lines starting with "- ".
+- Bullet points are lines starting with "- ". Each ends with a period. Use past-tense action verbs, even for a role you're still in. Write numbers as digits with their unit attached directly, e.g. "95.6%" or "6x", not spelled out.
 - For the SKILLS section specifically, write each category as its own line as \`Category label: @s items, comma, separated\` — these get packed two-per-row into a bold-label/regular-items grid, matching a typical two-column skills block. Don't use \`@@\`/\`@|\` for skills.
 - A blank line between entries and between sections.
 

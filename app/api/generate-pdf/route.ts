@@ -4,10 +4,11 @@ import { renderResumePdf, renderReportPdf, type FontStyle } from "@/lib/pdf-resu
 const VALID_STYLES: FontStyle[] = ["serif", "sans-serif", "monospace"];
 
 export async function POST(req: NextRequest) {
-  const { text, fontStyle, kind } = (await req.json()) as {
+  const { text, fontStyle, kind, company } = (await req.json()) as {
     text?: string;
     fontStyle?: string;
     kind?: string;
+    company?: string;
   };
 
   if (!text?.trim()) {
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (isReport) {
       pdfBytes = await renderReportPdf(text, style);
     } else {
-      const result = await renderResumePdf(text, style);
+      const result = await renderResumePdf(text, style, company?.trim() || undefined);
       pdfBytes = result.bytes;
       headers["X-Page-Count"] = String(result.pageCount);
       headers["Access-Control-Expose-Headers"] = "X-Page-Count";
